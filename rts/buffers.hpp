@@ -10,18 +10,17 @@ class buffer
 {
 public:
 
-  virtual void write (const std::vector<T>&) = 0;
+  virtual bool write (const std::vector<T>&) = 0;
   virtual bool latch (std::vector<T>&) = 0;
 };
 
 
-/* Single producer (and comsumer) buffer.  */
 template<typename T>
-class sp_buffer : public buffer<T>
+class spsc_buffer : public buffer<T>
 {
 public:
 
-  void
+  bool
   write (const std::vector<T> &data_in)
   {
     /* If it's been latched, we're free to write.  */
@@ -29,9 +28,10 @@ public:
       {
 	buff.assign (data_in.begin (), data_in.end ());
 	valid.store (true, std::memory_order_release);
+	return true;
       }
-    else
-      assert (false);   /* Not sufficient slack?  */
+
+    return false;
   }
 
   bool
@@ -44,7 +44,6 @@ public:
 	return true;
       }
 
-    /* Less severe, perhaps no input fed into the net.  */
     return false;
   }
 
