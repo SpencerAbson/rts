@@ -38,16 +38,11 @@ public:
 
   uint32_t timestep_cost () const { return num_inputs * num_outputs; }
 
-  void
-  timestep (std::unique_ptr<buffer<uint32_t>> buff_read,
-	    std::unique_ptr<buffer<uint32_t>> buff_write,
-	    uint32_t batch_begin, uint32_t batch_end)
+  std::vector<uint32_t>
+  timestep_batched (const std::vector<uint32_t> &spikes_in,
+		    uint32_t batch_begin, uint32_t batch_end)
   {
-    std::vector<uint32_t> spikes_in;
     std::vector<uint32_t> spikes_out;
-
-    if (!buff_read->latch (spikes_in))
-      return;   /* Input data not ready, bubble.  */
 
     float32x4_t beta_splat = vdupq_n_f32 (beta);
     float32x4_t thresh_splat = vdupq_n_f32 (v_thresh);
@@ -122,10 +117,17 @@ public:
 	v_membrane[i] = update;
       }
 
-    buff_write->write (spikes_out);
+    return spikes_out;
+  }
+
+  std::vector<uint32_t>
+  timestep (const std::vector<uint32_t> &spikes_in)
+  {
+    return timestep_batched (spikes_in, 0, weights.shape[1]);
   }
 
 private:
+
   uint32_t num_inputs;
   uint32_t num_outputs;
 
