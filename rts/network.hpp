@@ -91,17 +91,17 @@ public:
   {
     if (m_initialised)
       {
-        rts_checking_assert (m_stages.size ());
-        delete m_stages[0]->buffer_rd;
-        delete m_stages[0]->buffer_wr;
-        delete m_stages[0];
-        /* Subsequent stages should only free their write buffer,
-           since buffer_rd_{i+1} = buffer_wr_i.  */
-        for (uint32_t i = 1; i < m_stages.size (); i++)
-          {
-            delete m_stages[i]->buffer_wr;
-            delete m_stages[i];
-          }
+	rts_checking_assert (m_stages.size ());
+	delete m_stages[0]->buffer_rd;
+	delete m_stages[0]->buffer_wr;
+	delete m_stages[0];
+	/* Subsequent stages should only free their write buffer,
+	   since buffer_rd_{i+1} = buffer_wr_i.  */
+	for (uint32_t i = 1; i < m_stages.size (); i++)
+	  {
+	    delete m_stages[i]->buffer_wr;
+	    delete m_stages[i];
+	  }
       }
   }
 
@@ -130,31 +130,31 @@ private:
     uint32_t l_cost, s_cost = 0;
     for (layer *l : m_layers)
       {
-        l_cost = l->timestep_cost ();
-        /* If this layer improves the balance for the current stage,
-           or if we've run out threads to create a new one...   */
-        if (stage
-            && (ABSDIFF (s_cost + l_cost, target) < ABSDIFF (s_cost, target)
-                || m_stages.size () >= m_max_threads))
-          {
-            /* Add L to the current stage.  */
-            s_cost += l_cost;
-            stage->layers.push_back (l);
-          }
-        else
-          {
-            /* Otherwise, create a new stage/thread.  */
-            stage = new stage_info ();
-            stage->layers.push_back (l);
-            stage->buffer_rd = buffer_prev;
-            stage->buffer_wr = new spsc_buffer<uint32_t> ();
-            stage->sleep_ns  = m_sleep_ns;
-            stage->alive     = true;
-            /* Set buffer_rd for stage_{i+1} to buffer_wr_i.  */
-            buffer_prev      = stage->buffer_wr;
-            m_stages.push_back (stage);
-            s_cost = 0;
-          }
+	l_cost = l->timestep_cost ();
+	/* If this layer improves the balance for the current stage,
+	   or if we've run out threads to create a new one...   */
+	if (stage
+	    && (ABSDIFF (s_cost + l_cost, target) < ABSDIFF (s_cost, target)
+		|| m_stages.size () >= m_max_threads))
+	  {
+	    /* Add L to the current stage.  */
+	    s_cost += l_cost;
+	    stage->layers.push_back (l);
+	  }
+	else
+	  {
+	    /* Otherwise, create a new stage/thread.  */
+	    stage = new stage_info ();
+	    stage->layers.push_back (l);
+	    stage->buffer_rd = buffer_prev;
+	    stage->buffer_wr = new spsc_buffer<uint32_t> ();
+	    stage->sleep_ns  = m_sleep_ns;
+	    stage->alive     = true;
+	    /* Set buffer_rd for stage_{i+1} to buffer_wr_i.  */
+	    buffer_prev      = stage->buffer_wr;
+	    m_stages.push_back (stage);
+	    s_cost = 0;
+	  }
       }
 
     m_initialised = true;

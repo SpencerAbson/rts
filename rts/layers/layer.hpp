@@ -14,7 +14,7 @@ public:
   virtual uint32_t output_size () const = 0;
 
   /* A profile based estimate of the cost of running TIMESTEP across the
-     entire layer, or UNIT_COST if we lack this information.   */
+     entire layer, or UNIT_COST if we lack this information.  */
   virtual uint32_t timestep_cost () const
   {
     return UNIT_COST;
