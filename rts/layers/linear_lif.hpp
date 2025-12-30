@@ -10,8 +10,9 @@ class linear_lif : public layer
 public:
 
   linear_lif (uint32_t num_inputs, uint32_t num_outputs, float beta=0.8f,
-	      float v_thresh=1.0f)
-    : num_inputs (num_inputs),
+	      float v_thresh=1.0f, uint32_t ts_cost=UNIT_COST)
+    : ts_cost (ts_cost),
+      num_inputs (num_inputs),
       num_outputs (num_outputs),
       beta (beta),
       v_thresh (v_thresh),
@@ -19,8 +20,9 @@ public:
   {}
 
   linear_lif (tensor<float> weights, std::vector<float> bias, float beta=0.8f,
-	      float v_thresh=1.0f)
-    : num_inputs (weights.shape[0]),
+	      float v_thresh=1.0f, uint32_t ts_cost=UNIT_COST)
+    : ts_cost (ts_cost),
+      num_inputs (weights.shape[0]),
       num_outputs (weights.shape[1]),
       weights (weights),
       bias (bias),
@@ -36,7 +38,7 @@ public:
 
   uint32_t output_size () const { return num_outputs; }
 
-  uint32_t timestep_cost () const { return num_inputs * num_outputs; }
+  uint32_t timestep_cost () const { return ts_cost; }
 
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
@@ -128,6 +130,7 @@ public:
 
 private:
 
+  uint32_t ts_cost;
   uint32_t num_inputs;
   uint32_t num_outputs;
 

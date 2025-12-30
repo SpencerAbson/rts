@@ -12,6 +12,9 @@
     ((void)(0 && EXPR))
 #endif
 
+#define ABSDIFF(a, b)		\
+    (a > b) ? (a - b) : (b - a)
+
 inline void*
 rts_malloc (size_t size)
 {

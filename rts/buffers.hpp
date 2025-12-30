@@ -12,6 +12,7 @@ public:
 
   virtual bool write (const std::vector<T>&) = 0;
   virtual bool latch (std::vector<T>&) = 0;
+  virtual ~buffer () = default;
 };
 
 
