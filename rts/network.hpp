@@ -19,10 +19,15 @@ public:
     if (!m_layers.empty ())
       assert (l->input_size () == m_layers.back ()->output_size ()
 	      && "Mismatched layer dimensions.");
+
     m_layers.push_back (l);
   }
 
-  bool alive () { return m_alive; }
+  bool
+  alive ()
+  {
+    return m_alive;
+  }
 
   bool
   write (const std::vector<uint32_t> &vec)
@@ -73,10 +78,9 @@ public:
     assert (!m_alive && m_initialised);
     m_alive = true;
 
-    /* Dispatch each stage.  */
     pthread_t thread;
-    for (stage_info *s : m_stages)
-      pthread_create (&thread, NULL, stage_worker, s);
+    for (auto stage : m_stages)
+      pthread_create (&thread, NULL, stage_worker, stage);
   }
 
   void
@@ -89,19 +93,16 @@ public:
 
   ~network ()
   {
-    if (m_initialised)
+    if (!m_initialised)
+      return;
+    rts_checking_assert (m_stages.size ());
+    /* For i=1..n, buffer_rd_{i} = buffer_wr_{i-1}, so we should free
+       buffer_wr only for all but the first stage.  */
+    delete m_stages[0]->buffer_rd;
+    for (uint32_t i = 0; i < m_stages.size (); i++)
       {
-	rts_checking_assert (m_stages.size ());
-	delete m_stages[0]->buffer_rd;
-	delete m_stages[0]->buffer_wr;
-	delete m_stages[0];
-	/* Subsequent stages should only free their write buffer,
-	   since buffer_rd_{i+1} = buffer_wr_i.  */
-	for (uint32_t i = 1; i < m_stages.size (); i++)
-	  {
-	    delete m_stages[i]->buffer_wr;
-	    delete m_stages[i];
-	  }
+	delete m_stages[i]->buffer_wr;
+	delete m_stages[i];
       }
   }
 
@@ -128,24 +129,24 @@ private:
     buffer<uint32_t> *buffer_prev = new spsc_buffer<uint32_t> ();
     stage_info *stage = nullptr;
     uint32_t l_cost, s_cost = 0;
-    for (layer *l : m_layers)
+    for (auto layer : m_layers)
       {
-	l_cost = l->timestep_cost ();
+	l_cost = layer->timestep_cost ();
 	/* If this layer improves the balance for the current stage,
 	   or if we've run out threads to create a new one...   */
 	if (stage
 	    && (ABSDIFF (s_cost + l_cost, target) < ABSDIFF (s_cost, target)
 		|| m_stages.size () >= m_max_threads))
 	  {
-	    /* Add L to the current stage.  */
+	    /* Add this layer to the current stage.  */
 	    s_cost += l_cost;
-	    stage->layers.push_back (l);
+	    stage->layers.push_back (layer);
 	  }
 	else
 	  {
 	    /* Otherwise, create a new stage/thread.  */
 	    stage = new stage_info ();
-	    stage->layers.push_back (l);
+	    stage->layers.push_back (layer);
 	    stage->buffer_rd = buffer_prev;
 	    stage->buffer_wr = new spsc_buffer<uint32_t> ();
 	    stage->sleep_ns  = m_sleep_ns;
@@ -179,16 +180,24 @@ private:
     while (s_info->alive)
       {
 	/* Wait for input to be ready.  */
-	while (!(buffer_rd->latch (result)) && s_info->alive)
-	  clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	while (!(buffer_rd->latch (result)))
+	 {
+	   if (!s_info->alive)
+	     return NULL;
+	   clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	 }
 
 	/* Run the layers covered by this stage.  */
 	for (auto layer : layers)
 	  result = layer->timestep (result);
 
 	/* Wait for output to be latchable?  */
-	while (!(buffer_wr->write (result)) && s_info->alive)
-	  clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	while (!(buffer_wr->write (result)))
+	  {
+	    if (!s_info->alive)
+	      return NULL;
+	    clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	  }
       }
 
     return NULL;
