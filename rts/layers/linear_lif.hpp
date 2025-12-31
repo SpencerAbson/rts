@@ -10,8 +10,8 @@ class linear_lif : public layer
 public:
 
   linear_lif (uint32_t num_inputs, uint32_t num_outputs, float beta=0.8f,
-	      float v_thresh=1.0f, uint32_t ts_cost=UNIT_COST)
-    : ts_cost (ts_cost),
+	      float v_thresh=1.0f, uint64_t ts_cost=COST_UNDEF)
+    : layer (ts_cost),
       num_inputs (num_inputs),
       num_outputs (num_outputs),
       beta (beta),
@@ -20,8 +20,8 @@ public:
   {}
 
   linear_lif (tensor<float> weights, std::vector<float> bias, float beta=0.8f,
-	      float v_thresh=1.0f, uint32_t ts_cost=UNIT_COST)
-    : ts_cost (ts_cost),
+	      float v_thresh=1.0f, uint64_t ts_cost=COST_UNDEF)
+    : layer (ts_cost),
       num_inputs (weights.shape[0]),
       num_outputs (weights.shape[1]),
       weights (weights),
@@ -37,8 +37,6 @@ public:
   uint32_t input_size ()  const { return num_inputs; }
 
   uint32_t output_size () const { return num_outputs; }
-
-  uint32_t timestep_cost () const { return ts_cost; }
 
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
@@ -128,9 +126,28 @@ public:
     return timestep_batched (spikes_in, 0, weights.shape[1]);
   }
 
-private:
+  void
+  time_worstcase (uint32_t iterations, struct timespec &start,
+		  struct timespec &end)
+  {
+    /* Save the state of any variable dynamics.  */
+    std::vector<float> membrane_init = v_membrane;
 
-  uint32_t ts_cost;
+    /* Worst case here is when SPIKES_IN contains all of 0...(NUM_INPUTS-1).  */
+    std::vector<uint32_t> spike_in;
+    for (uint32_t i = 0; i < num_inputs; i++)
+      spike_in.push_back (i);
+
+    clock_gettime (CLOCK_MONOTONIC, &start);
+    for (uint32_t i = 0; i < iterations; i++)
+      timestep (spike_in);
+    clock_gettime (CLOCK_MONOTONIC, &end);
+
+    /* Restore state.  */
+    v_membrane = membrane_init;
+  }
+
+private:
   uint32_t num_inputs;
   uint32_t num_outputs;
 

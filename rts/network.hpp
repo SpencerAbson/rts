@@ -8,8 +8,10 @@
 class network
 {
 public:
-  network (uint32_t threads=2, uint64_t sleep_ns=80000)
-    :  m_sleep_ns (sleep_ns), m_max_threads (threads)
+  network (uint32_t threads=2, uint64_t sleep_ns=80000,
+	   uint32_t profile_iters=100)
+    :  m_sleep_ns (sleep_ns), m_max_threads (threads),
+       m_profile_iters (profile_iters)
   {}
 
   void
@@ -78,9 +80,8 @@ public:
     assert (!m_alive && m_initialised);
     m_alive = true;
 
-    pthread_t thread;
     for (auto stage : m_stages)
-      pthread_create (&thread, NULL, stage_worker, stage);
+      pthread_create (&stage->id, NULL, stage_worker, stage);
   }
 
   void
@@ -88,7 +89,10 @@ public:
   {
     m_alive = false;
     for (auto stage : m_stages)
-      stage->alive = false;
+      {
+	stage->alive = false;
+	pthread_join (stage->id, NULL);
+      }
   }
 
   ~network ()
@@ -109,42 +113,48 @@ public:
 private:
 
   void
-  initialise ()
+  linear_partitioning ()
   {
-    assert (m_max_threads != 0 && m_layers.size () >= m_max_threads);
-    /* FORNOW: Each thread/stage processes a set of successive layers
-       as defined by the network.  This leaves a lot of opportunity
-       untapped, such as breaking down individual layers arbitrarily,
-       but is a simple way to pipeline an SNN.
+    /* Greedily partition the layers into up to M_MAX_THREADS stages, such
+       that the load inbalance is minimised, with the constraint that the
+       layers in each partition must have been contiguous in the original
+       list.
 
-       A hacky greedy load-balancing algorithm that operates within
-       these constraints is given below.  */
-    uint32_t target = 0;
-    for (layer *l : m_layers)
-      target += l->timestep_cost ();
-    /* The optimal load for each stage.  */
+       This is known as 'linear partitioning' in literature.  */
+    rts_checking_assert (m_stages.empty ());
+
+    /* Calculate the optimal load for each stage.  */
+    uint64_t target = 0;
+    for (auto layer : m_layers)
+	target += layer->timestep_cost ();
     target /= m_max_threads;
 
-    /* Distribute the layers across M_MAX_THREADS stages.  */
-    buffer<uint32_t> *buffer_prev = new spsc_buffer<uint32_t> ();
+    /* We'll allocate stages and buffers as we go.  With the current
+       parallelism scheme, each buffer has a single producer and a
+       single consumer, so all buffers can be SPSC_BUFFER.  */
     stage_info *stage = nullptr;
-    uint32_t l_cost, s_cost = 0;
+    buffer<uint32_t> *buffer_prev
+      = new spsc_buffer<uint32_t> ();
+
+    uint64_t layer_cost, partition_cost = 0;
     for (auto layer : m_layers)
       {
-	l_cost = layer->timestep_cost ();
-	/* If this layer improves the balance for the current stage,
-	   or if we've run out threads to create a new one...   */
-	if (stage
-	    && (ABSDIFF (s_cost + l_cost, target) < ABSDIFF (s_cost, target)
-		|| m_stages.size () >= m_max_threads))
+	layer_cost = layer->timestep_cost ();
+	if ((stage && partition_cost + layer_cost / 2 <= target)
+	    || m_stages.size () >= m_max_threads)
 	  {
-	    /* Add this layer to the current stage.  */
-	    s_cost += l_cost;
 	    stage->layers.push_back (layer);
+	    partition_cost += layer_cost;
 	  }
 	else
 	  {
-	    /* Otherwise, create a new stage/thread.  */
+	    if (!stage)
+	      /* Initial stage, not the end of a partition.  */
+	      partition_cost = layer_cost;
+	    else
+	      /* Offset the next cost by current error.  */
+	      partition_cost = layer_cost - (target - partition_cost);
+
 	    stage = new stage_info ();
 	    stage->layers.push_back (layer);
 	    stage->buffer_rd = buffer_prev;
@@ -154,10 +164,24 @@ private:
 	    /* Set buffer_rd for stage_{i+1} to buffer_wr_i.  */
 	    buffer_prev      = stage->buffer_wr;
 	    m_stages.push_back (stage);
-	    s_cost = 0;
 	  }
       }
+  }
 
+  void
+  initialise ()
+  {
+    assert (m_max_threads != 0 && m_layers.size () >= m_max_threads);
+    /* Estimate profile information for all layers if they've left it
+       undefined.  */
+    for (auto layer : m_layers)
+      {
+	if (layer->timestep_cost () == COST_UNDEF)
+	  layer->profile (m_profile_iters);
+      }
+
+    /* Distribute layers across M_MAX_THREADS stages.  */
+    linear_partitioning ();
     m_initialised = true;
   }
 
@@ -181,11 +205,11 @@ private:
       {
 	/* Wait for input to be ready.  */
 	while (!(buffer_rd->latch (result)))
-	 {
-	   if (!s_info->alive)
-	     return NULL;
-	   clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
-	 }
+	  {
+	    if (!s_info->alive)
+	      return NULL;
+	    clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	  }
 
 	/* Run the layers covered by this stage.  */
 	for (auto layer : layers)
@@ -194,8 +218,8 @@ private:
 	/* Wait for output to be latchable?  */
 	while (!(buffer_wr->write (result)))
 	  {
-	    if (!s_info->alive)
-	      return NULL;
+	     if (!s_info->alive)
+	       return NULL;
 	    clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
 	  }
       }
@@ -207,6 +231,7 @@ private:
   bool m_initialised;
   uint64_t m_sleep_ns;
   uint32_t m_max_threads;
+  uint32_t m_profile_iters;
 
   struct stage_info
   {
@@ -218,8 +243,11 @@ private:
     buffer<uint32_t> *buffer_wr;
     /* Copy of network-wide sleep paramter.  */
     uint64_t sleep_ns;
+    /* Thread ID.  */
+    pthread_t id;
     /* Killswitch.  */
     bool alive;
+
   };
 
   std::vector<layer *> m_layers;
