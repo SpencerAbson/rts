@@ -80,18 +80,25 @@ public:
     assert (!alive () && m_initialised);
     m_alive.store (true, std::memory_order_release);
 
+    int res;
     for (auto stage : m_stages)
-      pthread_create (&stage->id, NULL, stage_worker, stage);
+      {
+	res = pthread_create (&stage->id, NULL, stage_worker, stage);
+	assert (res == 0 && "pthread creation failed.");
+      }
   }
 
   void
   kill ()
   {
     m_alive.store (false, std::memory_order_release);
+
+    int res;
     for (auto stage : m_stages)
       {
 	stage->alive.store (false, std::memory_order_release);
-	pthread_join (stage->id, NULL);
+	res = pthread_join (stage->id, NULL);
+	assert (res == 0 && "pthread join failed.");
       }
   }
 
