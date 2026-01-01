@@ -25,10 +25,10 @@ public:
   bool
   write (const std::vector<T> &data_in)
   {
-    if (!valid.load (std::memory_order_acquire))
+    if (!m_valid.load (std::memory_order_acquire))
       {
-	buff.assign (data_in.begin (), data_in.end ());
-	valid.store (true, std::memory_order_release);
+	m_buff.assign (data_in.begin (), data_in.end ());
+	m_valid.store (true, std::memory_order_release);
 	return true;
       }
 
@@ -38,10 +38,10 @@ public:
   bool
   latch (std::vector<T> &data_out)
   {
-    if (valid.load (std::memory_order_acquire))
+    if (m_valid.load (std::memory_order_acquire))
       {
-	data_out.assign (buff.begin (), buff.end ());
-	valid.store (false, std::memory_order_release);
+	data_out.assign (m_buff.begin (), m_buff.end ());
+	m_valid.store (false, std::memory_order_release);
 	return true;
       }
 
@@ -50,8 +50,8 @@ public:
 
 private:
 
-  std::vector<T> buff;
-  std::atomic<bool> valid;
+  std::vector<T> m_buff;
+  std::atomic<bool> m_valid;
 };
 
 #endif // BUFFERS_H_

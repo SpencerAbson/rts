@@ -12,31 +12,31 @@ public:
   linear_lif (uint32_t num_inputs, uint32_t num_outputs, float beta=0.8f,
 	      float v_thresh=1.0f, uint64_t ts_cost=COST_UNDEF)
     : layer (ts_cost),
-      num_inputs (num_inputs),
-      num_outputs (num_outputs),
-      beta (beta),
-      v_thresh (v_thresh),
-      v_membrane (num_outputs)
+      m_num_inputs (num_inputs),
+      m_num_outputs (num_outputs),
+      m_beta (beta),
+      m_v_thresh (v_thresh),
+      m_v_membrane (num_outputs)
   {}
 
   linear_lif (tensor<float> weights, std::vector<float> bias, float beta=0.8f,
 	      float v_thresh=1.0f, uint64_t ts_cost=COST_UNDEF)
     : layer (ts_cost),
-      num_inputs (weights.shape[0]),
-      num_outputs (weights.shape[1]),
-      weights (weights),
-      bias (bias),
-      beta (beta),
-      v_thresh (v_thresh),
-      v_membrane (weights.shape[1])
+      m_num_inputs (weights.shape[0]),
+      m_num_outputs (weights.shape[1]),
+      m_weights (weights),
+      m_bias (bias),
+      m_beta (beta),
+      m_v_thresh (v_thresh),
+      m_v_membrane (weights.shape[1])
   {
     assert (weights.shape.size () == 2
 	    && weights.shape[1] == bias.size ());
   }
 
-  uint32_t input_size ()  const { return num_inputs; }
+  uint32_t input_size ()  const { return m_num_inputs; }
 
-  uint32_t output_size () const { return num_outputs; }
+  uint32_t output_size () const { return m_num_outputs; }
 
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
@@ -44,8 +44,8 @@ public:
   {
     std::vector<uint32_t> spikes_out;
 
-    float32x4_t beta_splat = vdupq_n_f32 (beta);
-    float32x4_t thresh_splat = vdupq_n_f32 (v_thresh);
+    float32x4_t beta_splat = vdupq_n_f32 (m_beta);
+    float32x4_t thresh_splat = vdupq_n_f32 (m_v_thresh);
 
     /* It's difficult to parallelise this update given the binary COO encoded
        input buffer because NEON lacks gather-loads/scatter-stores.
@@ -60,19 +60,20 @@ public:
     for (uint32_t i = batch_begin; i < max_neon; i+=4)
       {
 	/* SLICE holds one value for each column that we're processing.  */
-	float32x4_t slice = vld1q_f32 (&bias[i]);
+	float32x4_t slice = vld1q_f32 (&m_bias[i]);
 	for (uint32_t j  = 0; j < spikes_in.size (); j++)
 	  {
-	    rts_checking_assert (spikes_in[j] < weights.shape[0]);
+	    rts_checking_assert (spikes_in[j] < m_weights.shape[0]);
 	    float32x4_t weight_slice
-	      = vld1q_f32 (&weights.vec[i + spikes_in[j] * weights.stride[0]]);
+	      = vld1q_f32 (&m_weights.vec[i + spikes_in[j]
+					  * m_weights.stride[0]]);
 
 	    slice = vaddq_f32 (slice, weight_slice);
 	  }
 
 	/* The membrane potentials of the the neurons associated with each
 	   value in SLICE.  */
-	float32x4_t membrane = vld1q_f32 (&v_membrane[i]);
+	float32x4_t membrane = vld1q_f32 (&m_v_membrane[i]);
 	/* Conditionally set a soft reset value (actually float).  */
 	uint32x4_t reset = vandq_u32 (vcgtq_f32 (membrane, thresh_splat),
 				      vreinterpretq_u32_f32 (thresh_splat));
@@ -95,26 +96,26 @@ public:
 	if (vgetq_lane_u32 (cmp, 3) != 0)
 	  spikes_out.push_back (i+3);
 
-	vst1q_f32 (&v_membrane[i], slice);
+	vst1q_f32 (&m_v_membrane[i], slice);
       }
     /* Scalar epilogue.  */
     for (uint32_t i = max_neon; i < batch_end; i++)
       {
-	float update = bias[i];
+	float update = m_bias[i];
 	for (uint32_t j = 0; j < spikes_in.size (); j++)
 	  {
-	    rts_checking_assert (spikes_in[j] < weights.shape[0]);
-	    update += weights.vec[i + spikes_in[j] * weights.stride[0]];
+	    rts_checking_assert (spikes_in[j] < m_weights.shape[0]);
+	    update += m_weights.vec[i + spikes_in[j] * m_weights.stride[0]];
 	  }
 
-	update = v_membrane[i] * beta + update;
-	if (v_membrane[i] > v_thresh)
-	  update -= v_thresh;
+	update = m_v_membrane[i] * m_beta + update;
+	if (m_v_membrane[i] > m_v_thresh)
+	  update -= m_v_thresh;
 
-	if (update > v_thresh)
+	if (update > m_v_thresh)
 	  spikes_out.push_back (i);
 
-	v_membrane[i] = update;
+	m_v_membrane[i] = update;
       }
 
     return spikes_out;
@@ -123,7 +124,7 @@ public:
   std::vector<uint32_t>
   timestep (const std::vector<uint32_t> &spikes_in)
   {
-    return timestep_batched (spikes_in, 0, weights.shape[1]);
+    return timestep_batched (spikes_in, 0, m_weights.shape[1]);
   }
 
   void
@@ -131,11 +132,12 @@ public:
 		  struct timespec &end)
   {
     /* Save the state of any variable dynamics.  */
-    std::vector<float> membrane_init = v_membrane;
+    std::vector<float> membrane_init = m_v_membrane;
 
-    /* Worst case here is when SPIKES_IN contains all of 0...(NUM_INPUTS-1).  */
+    /* Worst case here is when SPIKES_IN contains all of
+       0...(M_NUM_INPUTS-1).  */
     std::vector<uint32_t> spike_in;
-    for (uint32_t i = 0; i < num_inputs; i++)
+    for (uint32_t i = 0; i < m_num_inputs; i++)
       spike_in.push_back (i);
 
     clock_gettime (CLOCK_MONOTONIC, &start);
@@ -144,21 +146,21 @@ public:
     clock_gettime (CLOCK_MONOTONIC, &end);
 
     /* Restore state.  */
-    v_membrane = membrane_init;
+    m_v_membrane = membrane_init;
   }
 
 private:
-  uint32_t num_inputs;
-  uint32_t num_outputs;
+  uint32_t m_num_inputs;
+  uint32_t m_num_outputs;
 
   /* Linear parameters.  */
-  tensor<float> weights;
-  std::vector<float> bias;
+  tensor<float> m_weights;
+  std::vector<float> m_bias;
 
   /* LIF dynamics.  */
-  float beta;
-  float v_thresh;
-  std::vector<float> v_membrane;
+  float m_beta;
+  float m_v_thresh;
+  std::vector<float> m_v_membrane;
 };
 
 #endif // LINEAR_LIF_H_
