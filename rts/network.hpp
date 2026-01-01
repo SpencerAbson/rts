@@ -195,8 +195,6 @@ private:
   stage_worker (void *arg)
   {
     stage_info *s_info = (stage_info *)arg;
-    /* We don't want to be dereferencing these every cycle, so latch
-       them here.  */
     buffer<uint32_t> *buffer_rd = s_info->buffer_rd;
     buffer<uint32_t> *buffer_wr = s_info->buffer_wr;
     std::vector<layer *> layers = s_info->layers;

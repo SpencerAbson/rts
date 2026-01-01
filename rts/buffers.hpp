@@ -16,6 +16,7 @@ public:
 };
 
 
+/* Single-producer single-consumer buffer.  */
 template<typename T>
 class spsc_buffer : public buffer<T>
 {
@@ -24,7 +25,6 @@ public:
   bool
   write (const std::vector<T> &data_in)
   {
-    /* If it's been latched, we're free to write.  */
     if (!valid.load (std::memory_order_acquire))
       {
 	buff.assign (data_in.begin (), data_in.end ());
