@@ -45,6 +45,7 @@ public:
       + end.tv_nsec - start.tv_nsec) / iterations;
   }
 
+  virtual ~layer () = default;
 private:
   uint64_t m_ts_cost_ns;
 };

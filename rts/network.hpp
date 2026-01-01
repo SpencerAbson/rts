@@ -28,13 +28,13 @@ public:
   bool
   alive ()
   {
-    return m_alive;
+    return m_alive.load (std::memory_order_acquire);
   }
 
   bool
   write (const std::vector<uint32_t> &vec)
   {
-    assert (m_alive);
+    assert (alive ());
     return m_stages[0]->buffer_rd->write (vec);
   }
 
@@ -63,22 +63,22 @@ public:
     sleep.tv_sec = 0;
     sleep.tv_nsec = m_sleep_ns;
 
-    while (!(read (vec)))
+    while (!(read (vec)) && alive ())
       clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
   }
 
   void
   init ()
   {
-    assert (!m_alive && !m_initialised);
+    assert (!alive () && !m_initialised);
     initialise ();
   }
 
   void
   run ()
   {
-    assert (!m_alive && m_initialised);
-    m_alive = true;
+    assert (!alive () && m_initialised);
+    m_alive.store (true, std::memory_order_release);
 
     for (auto stage : m_stages)
       pthread_create (&stage->id, NULL, stage_worker, stage);
@@ -87,10 +87,10 @@ public:
   void
   kill ()
   {
-    m_alive = false;
+    m_alive.store (false, std::memory_order_release);
     for (auto stage : m_stages)
       {
-	stage->alive = false;
+	stage->alive.store (false, std::memory_order_release);
 	pthread_join (stage->id, NULL);
       }
   }
@@ -172,8 +172,7 @@ private:
   initialise ()
   {
     assert (m_max_threads != 0 && m_layers.size () >= m_max_threads);
-    /* Estimate profile information for all layers if they've left it
-       undefined.  */
+    /* Profile all layers whose cost is undefined.  */
     for (auto layer : m_layers)
       {
 	if (layer->timestep_cost () == COST_UNDEF)
@@ -201,33 +200,31 @@ private:
     sleep.tv_nsec = s_info->sleep_ns;
 
     std::vector<uint32_t> result;
-    while (s_info->alive)
+    while (s_info->alive.load (std::memory_order_acquire))
       {
-	/* Wait for input to be ready.  */
-	while (!(buffer_rd->latch (result)))
+	/* Wait for the input to be ready.  */
+	while (!buffer_rd->latch (result))
 	  {
-	    if (!s_info->alive)
-	      return NULL;
 	    clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	    /* Check if we've been killed while waiting.  */
+	    if (!s_info->alive.load (std::memory_order_acquire))
+	      return NULL;
 	  }
 
-	/* Run the layers covered by this stage.  */
 	for (auto layer : layers)
 	  result = layer->timestep (result);
 
-	/* Wait for output to be latchable?  */
-	while (!(buffer_wr->write (result)))
-	  {
-	     if (!s_info->alive)
-	       return NULL;
-	    clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
-	  }
+	/* Wait until output can be written, and similarly check
+	   that we haven't been killed.  */
+	while (s_info->alive.load (std::memory_order_acquire)
+	       && !buffer_wr->write (result))
+	  clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
       }
 
     return NULL;
   }
 
-  bool m_alive;
+  std::atomic<bool> m_alive;
   bool m_initialised;
   uint64_t m_sleep_ns;
   uint32_t m_max_threads;
@@ -246,8 +243,7 @@ private:
     /* Thread ID.  */
     pthread_t id;
     /* Killswitch.  */
-    bool alive;
-
+    std::atomic<bool> alive;
   };
 
   std::vector<layer *> m_layers;
