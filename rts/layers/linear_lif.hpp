@@ -128,6 +128,12 @@ public:
     for (uint32_t i = 0; i < m_num_inputs; i++)
       spike_in.push_back (i);
 
+    /* Shuffle this to (hopefully) avoid an optimistically linear
+       access pattern.  */
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(spike_in.begin(), spike_in.end(), g);
+
     clock_gettime (CLOCK_MONOTONIC, &start);
     for (uint32_t i = 0; i < iterations; i++)
       timestep (spike_in);
