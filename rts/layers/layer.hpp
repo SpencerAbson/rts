@@ -6,7 +6,6 @@
 
 #define COST_UNDEF 0
 
-/* Something about the assumptions, and how this relates to sublayer parallelism.  */
 class layer
 {
 public:
@@ -86,7 +85,11 @@ private:
   }
 
   /* Simulate one timestep using input spikes read from M_BUFFER_RD, and write
-     any output spikes to M_BUFFER_WR.  */
+     any output spikes to M_BUFFER_WR.
+
+     NOTE: This process generally involves quite a few std::vector push/copy
+     operations.  We ought to reserve this space ahead of time to avoid dynamic
+     allocation within the RT critical path.  */
   void
   run (uint32_t begin, uint32_t end)
   {

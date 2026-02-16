@@ -16,12 +16,25 @@ public:
   {
     m_sleep.tv_sec  = 0;
     m_sleep.tv_nsec = sleep_ns;
-    /* Handle timespec nsec overflow.  */
-    while (m_sleep.tv_nsec >= 1000000000)
-      {
-	m_sleep.tv_sec++;
-	m_sleep.tv_nsec -= 1000000000;
-      }
+    handle_timespec_overflow (m_sleep);
+  }
+
+  spikebuffer (uint64_t sleep_ns=50000)
+  {
+    m_sleep.tv_sec  = 0;
+    m_sleep.tv_nsec = sleep_ns;
+    handle_timespec_overflow (m_sleep);
+  }
+
+  void
+  set_readers (uint32_t readers)
+  {
+    m_readers = readers;
+  }
+  void
+  set_writers (uint32_t writers)
+  {
+    m_writers = writers;
   }
 
   void
@@ -155,7 +168,7 @@ private:
   uint32_t m_written_b = 0;
 
   bool m_tick = false;
-  struct timespec m_sleep;
+  timespec m_sleep;
   std::atomic<bool> m_lock = false;
 };
 

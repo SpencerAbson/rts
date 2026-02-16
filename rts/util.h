@@ -26,4 +26,14 @@ rts_malloc (size_t size)
   return ret;
 }
 
+inline void
+handle_timespec_overflow (timespec &ts)
+{
+  while (ts.tv_nsec >= 1000000000)
+  {
+    ts.tv_sec++;
+    ts.tv_nsec -= 1000000000;
+  }
+}
+
 #endif // UTIL_H_
