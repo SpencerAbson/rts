@@ -1,258 +1,225 @@
 #ifndef  NETWORK_H
 #define  NETWORK_H
 
-#include "layers/layer.hpp"
+#include <memory>
 #include "buffers.hpp"
+#include "layers/layer.hpp"
 
 
 class network
 {
 public:
-  network (uint32_t threads=2, uint64_t sleep_ns=80000,
-	   uint32_t profile_iters=100)
-    :  m_sleep_ns (sleep_ns), m_max_threads (threads),
-       m_profile_iters (profile_iters)
-  {}
+  network (uint32_t threads=2, uint64_t period_ns=1000000,
+	   uint32_t profile_iters=10)
+    : m_threads (threads), m_period_ns (period_ns),
+      m_profile_iters (profile_iters), m_input_thread (period_ns),
+      m_output_thread (period_ns)
+  {
+    /* Better to catch nonesense now than later on...  */
+    assert (m_threads && period_ns && m_profile_iters);
+  }
 
   void
-  add_layer (layer *l)
+  add_layer (std::unique_ptr<layer> l)
   {
     assert (!m_initialised);
     if (!m_layers.empty ())
-      assert (l->input_size () == m_layers.back ()->output_size ()
-	      && "Mismatched layer dimensions.");
+      assert (l->input_size () == m_layers.back ()->output_size ());
 
-    m_layers.push_back (l);
-  }
-
-  bool
-  alive ()
-  {
-    return m_alive.load (std::memory_order_acquire);
-  }
-
-  bool
-  write (const std::vector<uint32_t> &vec)
-  {
-    assert (alive ());
-    return m_stages[0]->buffer_rd->write (vec);
+    m_layers.push_back (std::move (l));
   }
 
   void
-  write_blocking (const std::vector<uint32_t> &vec)
+  initialise (std::vector<uint32_t> (*input_cb) (bool *),
+	      void (*output_cb) (const std::vector<uint32_t> &))
   {
-    struct timespec sleep;
-    sleep.tv_sec = 0;
-    sleep.tv_nsec = m_sleep_ns;
+    assert (!m_initialised && !m_layers.empty ());
+    /* Profile any layer whose cost is undefined.  */
+    for (auto &layer : m_layers)
+      {
+	if (layer->batch_cost () == COST_UNDEF)
+	  layer->profile_batch (m_profile_iters);
+      }
 
-    while (!(write (vec)))
-      clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+    /* Distribute the layers across M_THREADS partitions.  */
+    linear_partitioning ();
+
+    /* Set the input thread callback/buffer.  */
+    m_input_thread.set_callback (input_cb);
+    m_input_thread.set_buffer (m_layers.front ()->m_buffer_rd);
+
+    /* Likewise for the output thread.  */
+    m_output_thread.set_callback (output_cb);
+    m_output_thread.set_buffer (m_layers.back ()->m_buffer_wr);
+
+    m_initialised = true;
   }
 
-  bool
-  read (std::vector<uint32_t> &vec)
-  {
-    assert (m_initialised);
-    return (*--m_stages.end ())->buffer_wr->latch (vec);
-  }
-
-  void
-  read_blocking (std::vector<uint32_t> &vec)
-  {
-    struct timespec sleep;
-    sleep.tv_sec = 0;
-    sleep.tv_nsec = m_sleep_ns;
-
-    while (!(read (vec)) && alive ())
-      clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
-  }
-
-  void
-  init ()
-  {
-    assert (!alive () && !m_initialised);
-    initialise ();
-  }
-
-  void
+  int
   run ()
   {
-    assert (!alive () && m_initialised);
-    m_alive.store (true, std::memory_order_release);
+    assert (m_initialised);
+    rts_checking_assert (!m_layers.empty ());
 
-    int res;
-    for (auto stage : m_stages)
+    /* Select a start time conservatively far from now.  */
+    timespec abs_start;
+    clock_gettime (CLOCK_MONOTONIC, &abs_start);
+    /* ??? 50ms.  */
+    abs_start.tv_nsec += 5000000;
+    handle_timespec_overflow (&abs_start);
+
+    /* Start the network threads.  */
+    int ret;
+    for (auto &thread : m_network_threads)
       {
-	res = pthread_create (&stage->id, NULL, stage_worker, stage);
-	assert (res == 0 && "pthread creation failed.");
+	ret = thread.start (abs_start);
+	if (ret)
+	  {
+	    /* Bail!  */
+	    kill ();
+	    return ret;
+	  }
       }
-  }
-
-  void
-  kill ()
-  {
-    m_alive.store (false, std::memory_order_release);
-
-    int res;
-    for (auto stage : m_stages)
+    /* ... I/O threads.  */
+    ret = m_output_thread.start (abs_start);
+    if (ret)
       {
-	stage->alive.store (false, std::memory_order_release);
-	res = pthread_join (stage->id, NULL);
-	assert (res == 0 && "pthread join failed.");
+	kill ();
+	return ret;
       }
+
+    ret = m_input_thread.start (abs_start);
+    if (ret)
+      {
+	kill ();
+	return ret;
+      }
+
+    /* Wait for the input thread to die, then kill everything else.  */
+    m_input_thread.join ();
+    kill ();
+
+    return 0;
   }
 
   ~network ()
   {
-    if (!m_initialised)
+    kill ();
+    /* We're responsible for the buffers allocated between layers,
+       we have that BUFFER_RD for layer_i is BUFF_WR for layer_{i-1}
+       and so forth...  */
+    if (!m_layers.size ())
       return;
-    rts_checking_assert (m_stages.size ());
-    /* For i=1..n, buffer_rd_{i} = buffer_wr_{i-1}, so we should free
-       buffer_wr only for all but the first stage.  */
-    delete m_stages[0]->buffer_rd;
-    for (uint32_t i = 0; i < m_stages.size (); i++)
-      {
-	delete m_stages[i]->buffer_wr;
-	delete m_stages[i];
-      }
+
+    delete m_layers[0]->m_buffer_rd;
+    for (uint32_t i = 0; i < m_layers.size (); i++)
+      delete m_layers[i]->m_buffer_wr;
   }
 
 private:
 
   void
-  linear_partitioning ()
+  kill ()
   {
-    /* Greedily partition the layers into up to M_MAX_THREADS stages, such
-       that the load inbalance is minimised, with the constraint that the
-       layers in each partition must have been contiguous in the original
-       list.
+    /* Killemall.  */
+    for (auto &thread : m_network_threads)
+      thread.kill ();
 
-       This is known as 'linear partitioning' in literature.  */
-    rts_checking_assert (m_stages.empty ());
-
-    /* Calculate the optimal load for each stage.  */
-    uint64_t target = 0;
-    for (auto layer : m_layers)
-	target += layer->timestep_cost ();
-    target /= m_max_threads;
-
-    /* We'll allocate stages and buffers as we go.  With the current
-       parallelism scheme, each buffer has a single producer and a
-       single consumer, so all buffers can be SPSC_BUFFER.  */
-    stage_info *stage = nullptr;
-    buffer<uint32_t> *buffer_prev
-      = new spsc_buffer<uint32_t> ();
-
-    uint64_t layer_cost, partition_cost = 0;
-    for (auto layer : m_layers)
-      {
-	layer_cost = layer->timestep_cost ();
-	if ((stage && partition_cost + layer_cost / 2 <= target)
-	    || m_stages.size () >= m_max_threads)
-	  {
-	    stage->layers.push_back (layer);
-	    partition_cost += layer_cost;
-	  }
-	else
-	  {
-	    if (!stage)
-	      /* Initial stage, not the end of a partition.  */
-	      partition_cost = layer_cost;
-	    else
-	      /* Offset the next cost by current error.  */
-	      partition_cost = layer_cost - (target - partition_cost);
-
-	    stage = new stage_info ();
-	    stage->layers.push_back (layer);
-	    stage->buffer_rd = buffer_prev;
-	    stage->buffer_wr = new spsc_buffer<uint32_t> ();
-	    stage->sleep_ns  = m_sleep_ns;
-	    stage->alive     = true;
-	    /* Set buffer_rd for stage_{i+1} to buffer_wr_i.  */
-	    buffer_prev      = stage->buffer_wr;
-	    m_stages.push_back (stage);
-	  }
-      }
+    m_input_thread.kill ();
+    m_output_thread.kill ();
   }
 
   void
-  initialise ()
+  linear_partitioning ()
   {
-    assert (m_max_threads != 0 && m_layers.size () >= m_max_threads);
-    /* Profile all layers whose cost is undefined.  */
-    for (auto layer : m_layers)
+    rts_checking_assert (m_network_threads.empty () && m_layers.size ());
+
+    /* Calculate the target load for each partition.  */
+    uint64_t target = 0;
+    for (const auto &layer : m_layers)
+      target += layer->batch_cost () * layer->total_batches ();
+    target /= m_threads;
+
+    /* We'll allocate buffers as we go.  We know that the first buffer (that
+       which receives data from the callback input and is read by the first
+       layer) has exactly one writer.  */
+    spikebuffer *buffer_prev = new spikebuffer ();
+    buffer_prev->set_writers (1);
+
+    /* Cost for current partition.  */
+    uint64_t partition_cost = 0;
+    /* Sublayers for the current partition.  */
+    std::vector<sublayer> sublayers;
+    for (auto &layer : m_layers)
       {
-	if (layer->timestep_cost () == COST_UNDEF)
-	  layer->profile (m_profile_iters);
-      }
+	/* The number of sublayers we've split this layer into.  */
+	uint32_t l_slayers  = 0;
+	uint64_t batch_cost = layer->batch_cost ();
+	uint64_t batch_size = layer->batch_size ();
 
-    /* Distribute layers across M_MAX_THREADS stages.  */
-    linear_partitioning ();
-    m_initialised = true;
-  }
+	/* Set sublayer info.  */
+	uint32_t end   = 0;
+	uint32_t begin = 0;
 
-  static void*
-  stage_worker (void *arg)
-  {
-    stage_info *s_info = (stage_info *)arg;
-    buffer<uint32_t> *buffer_rd = s_info->buffer_rd;
-    buffer<uint32_t> *buffer_wr = s_info->buffer_wr;
-    std::vector<layer *> layers = s_info->layers;
-
-    /* For nanosleeping.  */
-    struct timespec sleep;
-    sleep.tv_sec  = 0;
-    sleep.tv_nsec = s_info->sleep_ns;
-
-    std::vector<uint32_t> result;
-    while (s_info->alive.load (std::memory_order_acquire))
-      {
-	/* Wait for the input to be ready.  */
-	while (!buffer_rd->latch (result))
+	/* Schedule the layer batch-by-batch.  */
+	while (end != layer->output_size ())
 	  {
-	    clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
-	    /* Check if we've been killed while waiting.  */
-	    if (!s_info->alive.load (std::memory_order_acquire))
-	      return NULL;
+	    if (partition_cost + batch_cost / 2 <= target)
+	      partition_cost += batch_cost;
+	    else
+	      {
+		if (end != 0)
+		  {
+		    sublayers.emplace_back (layer.get (), begin, end);
+		    l_slayers++;
+		    /* The next sublayer starts from where this one ends.  */
+		    begin = end;
+		  }
+		/* Record the current partition.  */
+		m_network_threads.emplace_back (m_period_ns, sublayers);
+		/* Reset SUBLAYERS and PARITION_COST.  */
+		sublayers.clear ();
+		partition_cost = batch_cost - (target - partition_cost);
+	      }
+	    end += batch_size;
 	  }
+	/* We've reached the end of this layer, and by definition the current
+	   sublayer.  */
+	sublayers.emplace_back (layer.get (), begin, end);
+	l_slayers++;
 
-	for (auto layer : layers)
-	  result = layer->timestep (result);
+	/* Set BUFFER_RD for layer_i to BUFFER_WR of layer_{i-1}, but first,
+	   tell that buffer how many readers it has.  */
+	buffer_prev->set_readers (l_slayers);
+	layer->m_buffer_rd = buffer_prev;
 
-	/* Wait until output can be written, and similarly check
-	   that we haven't been killed.  */
-	while (s_info->alive.load (std::memory_order_acquire)
-	       && !buffer_wr->write (result))
-	  clock_nanosleep (CLOCK_MONOTONIC, 0, &sleep, NULL);
+	/* Update BUFFER_PREV to that which this layer will write to.  */
+	buffer_prev = new spikebuffer ();
+	buffer_prev->set_writers (l_slayers);
+	layer->m_buffer_wr = buffer_prev;
       }
-
-    return NULL;
+    /* Record the final parition.  */
+    m_network_threads.emplace_back (m_period_ns, sublayers);
+    /* We know that the final buffer (that which receives data from the last
+       layer and is read by the output callback) has exactly one reader.  */
+    buffer_prev->set_readers (1);
   }
 
-  std::atomic<bool> m_alive;
-  bool m_initialised;
-  uint64_t m_sleep_ns;
-  uint32_t m_max_threads;
+  /* The number of threads used to parallelise the network.  */
+  uint32_t m_threads;
+  /* RT cyclic period.  */
+  uint64_t m_period_ns;
+  /* Number of profile measurements to take the arithmetic mean over.  */
   uint32_t m_profile_iters;
+  /* The layers of a sequential spiking neural network (in order).  */
+  std::vector<std::unique_ptr<layer>> m_layers;
 
-  struct stage_info
-  {
-    /* layer(s) run during this stage.  */
-    std::vector<layer *> layers;
-    /* Input buffer for first layer of this stage.  */
-    buffer<uint32_t> *buffer_rd;
-    /* Output buffer for the last layer this stage.  */
-    buffer<uint32_t> *buffer_wr;
-    /* Copy of network-wide sleep paramter.  */
-    uint64_t sleep_ns;
-    /* Thread ID.  */
-    pthread_t id;
-    /* Killswitch.  */
-    std::atomic<bool> alive;
-  };
+  /* RT thread objects.  */
+  input_rtt m_input_thread;
+  output_rtt m_output_thread;
+  std::vector<network_rtt> m_network_threads;
 
-  std::vector<layer *> m_layers;
-  std::vector<stage_info *> m_stages;
+  bool m_initialised = false;
 };
 
 #endif //  NETWORK_H
