@@ -11,7 +11,7 @@ class spikebuffer
 {
 public:
 
-  spikebuffer (uint32_t writers, uint32_t readers, uint64_t sleep_ns=50000)
+  spikebuffer (uint32_t writers, uint32_t readers, uint64_t sleep_ns=5000)
     : m_writers (writers), m_readers (readers)
   {
     m_sleep.tv_sec  = 0;
@@ -19,7 +19,7 @@ public:
     handle_timespec_overflow (&m_sleep);
   }
 
-  spikebuffer (uint64_t sleep_ns=50000)
+  spikebuffer (uint64_t sleep_ns=5000)
   {
     m_sleep.tv_sec  = 0;
     m_sleep.tv_nsec = sleep_ns;
@@ -31,6 +31,7 @@ public:
   {
     m_readers = readers;
   }
+
   void
   set_writers (uint32_t writers)
   {
@@ -159,8 +160,14 @@ private:
   void
   handle_timing_violation ()
   {
-    debug_printf ("Timing violation detected.");
-    /* What now?  */
+    debug_printf ("Timing violation detected, instability condition:\n");
+    if (m_tick)
+      debug_printf ("readers: %u, read_b: %u, writers %u, written_a: %u\n",
+		    m_readers, m_read_b, m_writers, m_written_a);
+    else
+      debug_printf ("readers: %u, read_a: %u, writers %u, written_b: %u\n",
+		    m_readers, m_read_a, m_writers, m_written_b);
+    /* What now?  Stabilise?  */
   }
 
   uint32_t m_writers = 0;

@@ -55,6 +55,18 @@ public:
     return m_num_outputs / m_batch_size;
   }
 
+  /* Simulate one timestep using input spikes read from M_BUFFER_RD, and write
+     any output spikes to M_BUFFER_WR.
+
+     NOTE: This process generally involves quite a few std::vector push/copy
+     operations.  We ought to reserve this space ahead of time to avoid dynamic
+     allocation within the RT critical path.  */
+  void
+  run (uint32_t begin, uint32_t end)
+  {
+    write (timestep_batched (read (), begin, end));
+  }
+
   virtual ~layer () = default;
 
 private:
@@ -85,18 +97,6 @@ private:
   {
     assert (m_buffer_wr != nullptr);
     m_buffer_wr->write (spikes);
-  }
-
-  /* Simulate one timestep using input spikes read from M_BUFFER_RD, and write
-     any output spikes to M_BUFFER_WR.
-
-     NOTE: This process generally involves quite a few std::vector push/copy
-     operations.  We ought to reserve this space ahead of time to avoid dynamic
-     allocation within the RT critical path.  */
-  void
-  run (uint32_t begin, uint32_t end)
-  {
-    write (timestep_batched (read (), begin, end));
   }
 
   /* Lifetimes managed by the network.  */

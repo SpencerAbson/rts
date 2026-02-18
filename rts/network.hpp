@@ -1,10 +1,7 @@
 #ifndef  NETWORK_H
 #define  NETWORK_H
 
-#include <atomic>
 #include <memory>
-#include <sched.h>
-#include <pthread.h>
 #include "buffers.hpp"
 #include "layers/layer.hpp"
 
@@ -12,12 +9,14 @@
 class network
 {
 public:
-  network (uint32_t threads=2, uint64_t period_ns=1000000,
+  network (uint32_t threads=2, uint64_t period_ns=300000,
 	   uint32_t profile_iters=100)
     : m_threads (threads), m_period_ns (period_ns),
-      m_profile_iters (profile_iters)
+      m_profile_iters (profile_iters), m_input_thread (period_ns),
+      m_output_thread (period_ns)
   {
-    assert (m_threads != 0);
+    /* Better to catch nonesense now than later on...  */
+    assert (m_threads && period_ns && m_profile_iters);
   }
 
   void
@@ -31,11 +30,11 @@ public:
   }
 
   void
-  initialise (std::vector<uint32_t> (*input_cb) (void),
+  initialise (std::vector<uint32_t> (*input_cb) (bool *),
 	      void (*output_cb) (const std::vector<uint32_t> &))
   {
     assert (!m_initialised && !m_layers.empty ());
-    /* Profile all layers whose cost is undefined.  */
+    /* Profile any layer whose cost is undefined.  */
     for (auto &layer : m_layers)
       {
 	if (layer->batch_cost () == COST_UNDEF)
@@ -45,16 +44,13 @@ public:
     /* Distribute the layers across M_THREADS partitions.  */
     linear_partitioning ();
 
-    /* Setup the input and output workers.  The former writes to the first
-       layer's BUFFER_RD.  */
-    m_input_worker.cb	= input_cb;
-    m_input_worker.period_ns = m_period_ns;
-    m_input_worker.buffer    = (*m_layers.begin ())->m_buffer_rd;
+    /* Set the input thread callback/buffer.  */
+    m_input_thread.set_callback (input_cb);
+    m_input_thread.set_buffer (m_layers.front ()->m_buffer_rd);
 
-    /* The latter reads from the last layer's BUFFER_WR.  */
-    m_output_worker.cb	= output_cb;
-    m_output_worker.period_ns = m_period_ns;
-    m_output_worker.buffer    = (*m_layers.end ())->m_buffer_wr;
+    /* Likewise for the output thread.  */
+    m_output_thread.set_callback (output_cb);
+    m_output_thread.set_buffer (m_layers.back ()->m_buffer_wr);
 
     m_initialised = true;
   }
@@ -62,89 +58,43 @@ public:
   int
   run ()
   {
-    assert (!m_alive && m_initialised);
+    assert (m_initialised);
     rts_checking_assert (!m_layers.empty ());
 
-    timespec start;
-    pthread_attr_t attr;
-    /* The same attributes are currently shared by all RT threads.  */
-    int ret = initialise_rt_attr (&attr, 80);
-    if (ret)
+    /* Select a start time conservatively far from now.  TODO: modify
+       wait_rest_of_period to catch a potential violation here.  */
+    timespec abs_start;
+    clock_gettime (CLOCK_MONOTONIC, &abs_start);
+    /* ??? 50ms.  */
+    abs_start.tv_nsec += 5000000;
+    handle_timespec_overflow (&abs_start);
+
+    /* Start the network threads.  */
+    int ret;
+    for (auto &thread : m_network_threads)
       {
-	debug_printf ("Failed to initialise RT pthread attributes.\n");
-	return ret;
-      }
-
-    /* Coordinate a start time for all threads.  */
-    clock_gettime (CLOCK_MONOTONIC, &start);
-    /* ??? 50ms should be conservative enough.  */
-    start.tv_nsec += 50000000;
-    handle_timespec_overflow (&start);
-
-    /* Create the worker threads.  */
-    for (auto &worker : m_layer_workers)
-      {
-	worker.abs_start = start;
-	ret = pthread_create (&worker.id, &attr, layer_worker_fn,
-			      (void *)&worker);
-
+	ret = thread.start (abs_start);
 	if (ret)
-	  {
-	    kill ();
-	    debug_perror ("pthread_create");
-	    return ret;
-	  }
+	  return ret;
       }
-
-    /* Similarly, for the I/O threads.  */
-    m_input_worker.abs_start = start;
-    ret = pthread_create (&m_input_worker.id, &attr, input_worker_fn,
-			  (void *)&m_input_worker);
+    /* ... I/O threads.  */
+    ret = m_output_thread.start (abs_start);
     if (ret)
-      {
-	kill ();
-	debug_perror ("pthread_create");
-	return ret;
-      }
+      return ret;
 
-    m_output_worker.abs_start = start;
-    ret = pthread_create (&m_output_worker.id, &attr, output_worker_fn,
-			  (void *)&m_output_worker);
+    ret = m_input_thread.start (abs_start);
     if (ret)
-      {
-	kill ();
-	debug_perror ("pthread_create");
-	return ret;
-      }
+      return ret;
+
+    /* Wait for the input thread to die, then kill everything else.  */
+    m_input_thread.join ();
+    kill ();
 
     return 0;
   }
 
-  void
-  kill ()
-  {
-    rts_checking_assert (m_initialised);
-    /* Firstly, kill the I/O threads if they aren't dead already.  */
-    if (kill_worker (&m_input_worker))
-      debug_printf ("Failed to kill the input worker.");
-
-    if (kill_worker (&m_output_worker))
-      debug_printf ("Failed to kill the output worker.");
-
-    /* Next, the layer threads.  */
-    for (auto &worker : m_layer_workers)
-      {
-	if (kill_worker (&worker))
-	  debug_printf ("Failed to kill a layer worker.");
-      }
-
-    m_alive = false;
-  }
-
   ~network ()
   {
-    if (!m_initialised)
-      return;
     kill ();
     /* We're responsible for the buffers allocated between layers,
        we have that BUFFER_RD for layer_i is BUFF_WR for layer_{i-1}
@@ -160,9 +110,20 @@ public:
 private:
 
   void
+  kill ()
+  {
+    /* Killemall.  */
+    for (auto &thread : m_network_threads)
+      thread.kill ();
+
+    m_input_thread.kill ();
+    m_output_thread.kill ();
+  }
+
+  void
   linear_partitioning ()
   {
-    rts_checking_assert (m_layer_workers.empty ());
+    rts_checking_assert (m_network_threads.empty () && m_layers.size ());
 
     /* Calculate the target load for each partition.  */
     uint64_t target = 0;
@@ -206,7 +167,7 @@ private:
 		    begin = end;
 		  }
 		/* Record the current partition.  */
-		m_layer_workers.emplace_back (sublayers, m_period_ns);
+		m_network_threads.emplace_back (m_period_ns, sublayers);
 		/* Reset SUBLAYERS and PARITION_COST.  */
 		sublayers.clear ();
 		partition_cost = batch_cost - (target - partition_cost);
@@ -229,220 +190,26 @@ private:
 	layer->m_buffer_wr = buffer_prev;
       }
     /* Record the final parition.  */
-    m_layer_workers.emplace_back (sublayers, m_period_ns);
+    m_network_threads.emplace_back (m_period_ns, sublayers);
     /* We know that the final buffer (that which receives data from the last
        layer and is read by the output callback) has exactly one reader.  */
     buffer_prev->set_readers (1);
   }
 
-  struct sublayer
-  {
-    layer *l;
-    uint32_t begin;
-    uint32_t end;
-
-    sublayer (layer *l, uint32_t begin, uint32_t end)
-      : l (l), begin (begin), end (end)
-    {}
-  };
-  /* The base of the argument to each pthread.  */
-  struct worker_info
-  {
-    /* Copy of network-wide period parameter.  */
-    uint64_t period_ns;
-    /* Absolute start time.  */
-    timespec abs_start;
-    /* Killswitch.  */
-    std::atomic<bool> alive{false};
-    /* Thread ID.  */
-    pthread_t id;
-
-    worker_info () = default;
-
-    worker_info (uint64_t period)
-      : period_ns (period)
-    {}
-
-    worker_info (const worker_info &other)
-      : period_ns (other.period_ns),
-	alive (other.alive.load (std::memory_order_seq_cst))
-    {}
-  };
-  /* The argument to each layer pthread.  */
-  struct layer_worker : worker_info
-  {
-    /* Workload.  */
-    std::vector<sublayer> sublayers;
-
-    layer_worker (std::vector<sublayer> slayers, uint64_t period)
-      : worker_info (period), sublayers (slayers)
-    {}
-  };
-  /* The argument to the input pthread.  */
-  struct input_worker : worker_info
-  {
-    /* Written to by us only, read by threads running the first layer.  */
-    spikebuffer *buffer;
-    /* Callback.  */
-    std::vector<uint32_t> (*cb) (void);
-  };
-  /* The argument to the output pthread.  */
-  struct output_worker : worker_info
-  {
-    /* Written to by threads running the last layer, read by us only.  */
-    spikebuffer *buffer;
-    /* Callback.  */
-    void (*cb) (const std::vector<uint32_t> &);
-  };
-
-  int
-  initialise_rt_attr (pthread_attr_t *attr, int32_t priority)
-  {
-    sched_param param;
-    int ret = pthread_attr_init (attr);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_init");
-	return ret;
-      }
-    /* Set scheduler policy and priority of the pthread.  */
-    ret = pthread_attr_setschedpolicy (attr, SCHED_FIFO);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_setschedpolicy");
-	return ret;
-      }
-    param.sched_priority = priority;
-    ret = pthread_attr_setschedparam (attr, &param);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_setschedparam");
-	return ret;
-      }
-    /* Use scheduling parameters of attr.  */
-    ret = pthread_attr_setinheritsched (attr, PTHREAD_EXPLICIT_SCHED);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_setinheritedsched");
-	return ret;
-      }
-
-    return 0;
-  }
-
-  static int
-  kill_worker (worker_info *worker)
-  {
-    int ret = 0;
-    if (worker->alive.load (std::memory_order_acquire))
-      {
-	worker->alive.store (false, std::memory_order_release);
-	ret = pthread_join (worker->id, NULL);
-
-	if (ret)
-	  debug_perror ("pthread_join");
-      }
-
-    return ret;
-  }
-
-  /* Sleep until the clock reaches TS + PERIOD_NS.  NOTE:  We ought to be
-     checking whether this time has already been reached...  */
-  static void
-  wait_rest_of_period (timespec *ts, uint64_t period_ns)
-  {
-    ts->tv_nsec += period_ns;
-    handle_timespec_overflow (ts);
-    clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, ts, NULL);
-  }
-
-  /* Function executed by layer RT threads.  */
-  static void*
-  layer_worker_fn (void *arg)
-  {
-    layer_worker *info = (layer_worker *)arg;
-    info->alive.store (true, std::memory_order_release);
-
-    timespec timer = info->abs_start;
-    uint64_t period_ns = info->period_ns;
-    std::vector<sublayer> slayers = info->sublayers;
-
-    /* Sleep until the absolute start time.  */
-    clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &timer, NULL);
-
-    /* Main RT cyclic task for layer workers.  */
-    while (info->alive.load (std::memory_order_acquire))
-      {
-	for (sublayer &slayer : slayers)
-	  slayer.l->run (slayer.begin, slayer.end);
-
-	wait_rest_of_period (&timer, period_ns);
-      }
-
-    return NULL;
-  }
-
-  /* Funcion executed by the input RT thread.  */
-  static void*
-  input_worker_fn (void *arg)
-  {
-    input_worker *info = (input_worker *)arg;
-    info->alive.store (true, std::memory_order_release);
-
-    timespec timer = info->abs_start;
-    uint64_t period_ns = info->period_ns;
-    spikebuffer *buffer = info->buffer;
-    std::vector<uint32_t> (*cb) (void) = info->cb;
-
-    /* Sleep until the absolute start time.  */
-    clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &timer, NULL);
-
-    /* Main RT cyclic task for the input worker.  */
-    while (info->alive.load (std::memory_order_acquire))
-      {
-	buffer->write (cb ());
-	wait_rest_of_period (&timer, period_ns);
-      }
-
-    return NULL;
-  }
-
-   /* Funcion executed by the input RT thread.  */
-  static void*
-  output_worker_fn (void *arg)
-  {
-    output_worker *info = (output_worker *)arg;
-    info->alive.store (true, std::memory_order_release);
-
-    timespec timer = info->abs_start;
-    uint64_t period_ns = info->period_ns;
-    spikebuffer *buffer = info->buffer;
-    void (*cb) (const std::vector<uint32_t> &) = info->cb;
-
-    /* Sleep until the absolute start time.  */
-    clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &timer, NULL);
-
-    /* Main RT cyclic task for the output worker.  */
-    while (info->alive.load (std::memory_order_acquire))
-      {
-	cb (buffer->read ());
-	wait_rest_of_period (&timer, period_ns);
-      }
-
-    return NULL;
-  }
-
+  /* The number of threads used to parallelise the network.  */
   uint32_t m_threads;
+  /* RT cyclic period.  */
   uint64_t m_period_ns;
+  /* Number of profile measurements to take the arithmetic mean over.  */
   uint32_t m_profile_iters;
-
-  input_worker m_input_worker;
-  output_worker m_output_worker;
-
-  std::vector<layer_worker> m_layer_workers;
+  /* The layers of a sequential spiking neural network (in order).  */
   std::vector<std::unique_ptr<layer>> m_layers;
 
-  bool m_alive = false;
+  /* RT thread objects.  */
+  input_rtt m_input_thread;
+  output_rtt m_output_thread;
+  std::vector<network_rtt> m_network_threads;
+
   bool m_initialised = false;
 };
 
