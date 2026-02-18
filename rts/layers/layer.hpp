@@ -68,6 +68,9 @@ private:
 
     m_batch_cost_ns = ((end.tv_sec - start.tv_sec) * 1000000000
 	+ end.tv_nsec - start.tv_nsec) / iterations;
+
+    debug_printf ("\nProfiler information\niterations: %u\nbatch size: \
+%u\ncost: %lu (ns)\n", iterations, m_batch_size, m_batch_cost_ns);
   }
 
   std::vector<uint32_t>

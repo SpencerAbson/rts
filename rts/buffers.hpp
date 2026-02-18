@@ -16,14 +16,14 @@ public:
   {
     m_sleep.tv_sec  = 0;
     m_sleep.tv_nsec = sleep_ns;
-    handle_timespec_overflow (m_sleep);
+    handle_timespec_overflow (&m_sleep);
   }
 
   spikebuffer (uint64_t sleep_ns=50000)
   {
     m_sleep.tv_sec  = 0;
     m_sleep.tv_nsec = sleep_ns;
-    handle_timespec_overflow (m_sleep);
+    handle_timespec_overflow (&m_sleep);
   }
 
   void
@@ -35,6 +35,14 @@ public:
   set_writers (uint32_t writers)
   {
     m_writers = writers;
+  }
+
+  /* To avoid dynamic memory allocation on the RT critical path.  */
+  void
+  reserve (std::vector<uint32_t>::size_type size)
+  {
+    m_buff_a.reserve (size);
+    m_buff_b.reserve (size);
   }
 
   void
@@ -151,7 +159,8 @@ private:
   void
   handle_timing_violation ()
   {
-    exit (-1);
+    debug_printf ("Timing violation detected.");
+    /* What now?  */
   }
 
   uint32_t m_writers = 0;
@@ -169,7 +178,7 @@ private:
 
   bool m_tick = false;
   timespec m_sleep;
-  std::atomic<bool> m_lock = false;
+  std::atomic<bool> m_lock {false};
 };
 
 #endif // BUFFERS_H_
