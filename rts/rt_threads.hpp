@@ -19,6 +19,8 @@ public:
   /* RT cyclic task implementation.  */
   virtual void run () = 0;
 
+  /* Initialise and run, returning 0 on success and a pthread error
+     code otherwise.  */
   int
   start (timespec start)
   {
@@ -68,6 +70,7 @@ public:
     return 0;
   }
 
+  /* Wrapper on pthread_join.  */
   int
   join ()
   {
@@ -81,13 +84,15 @@ public:
     return ret;
   }
 
+  /* Kill and join, returning 0 on success and a pthread error
+     code otherwise.  */
   int
   kill ()
   {
     int ret = 0;
     if (m_alive.load (std::memory_order_acquire))
       {
-	m_alive.store (false, std::memory_order_release);
+	m_alive.store (false, std::memory_order_relaxed);
 	ret = join ();
       }
     if (ret)
@@ -100,9 +105,9 @@ public:
   runner (void *arg)
   {
     rt_thread *thread = (rt_thread *)arg;
+
     /* Set state to alive.  */
     thread->m_alive.store (true, std::memory_order_relaxed);
-
     /* Sleep until the absolute start time.  */
     clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &thread->m_timer, NULL);
 
@@ -111,6 +116,8 @@ public:
     return NULL;
   }
 
+  /* Sleep until we reach time T'=T+period.  TODO: warn if current time
+     is > T'.  */
   void
   wait_rest_of_period ()
   {
@@ -120,27 +127,31 @@ public:
     clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
   }
 
-  /* Copy of network-wide period parameter.  */
-  uint64_t m_period_ns;
   /* Timer, initially the absolute start time.  */
   timespec m_timer;
   /* Killswitch.  */
   std::atomic<bool> m_alive {false};
-  /* pthread API info.  */
-  pthread_t m_id;
-  int m_policy;
-  int m_priority;
 
   /* I would leave this as default but the compiler understandably deletes
      the default copy constructor on atomics...   */
   rt_thread (const rt_thread& other)
-    : m_period_ns (other.m_period_ns), m_timer (other.m_timer),
-      m_alive (other.m_alive.load ()), m_id (other.m_id),
+    : m_timer (other.m_timer), m_alive (other.m_alive.load ()),
+      m_period_ns (other.m_period_ns), m_id (other.m_id),
       m_policy (other.m_policy), m_priority (other.m_priority)
   {}
+
+private:
+  /* Copy of network-wide period parameter.  */
+  uint64_t m_period_ns;
+  /* pthread API info.  */
+  pthread_t m_id;
+  int m_policy;
+  int m_priority;
 };
 
-
+/* The natural interval [BEGIN, END) represents a contigious part of
+   layer L's neurons that we refer to as a 'sublayer'.  It is the job
+   of each network thread to run a set of these.  */
 struct sublayer
 {
   layer *l;
@@ -152,6 +163,7 @@ struct sublayer
   {}
 };
 
+/* A thread which computes part of the network (see 'sublayer').  */
 class network_rtt : public rt_thread
 {
 public:
@@ -164,7 +176,7 @@ public:
   void
   run ()
   {
-    while (m_alive.load (std::memory_order_acquire))
+    while (m_alive.load (std::memory_order_relaxed))
       {
 	for (sublayer &slayer : m_sublayers)
 	  slayer.l->run (slayer.begin, slayer.end);
@@ -178,7 +190,11 @@ private:
   std::vector<sublayer> m_sublayers;
 };
 
+/* A thread which takes input from callback M_CB and writes it to a buffer
+   M_BUFFER read by the thread(s) handling the input layer of the network.
 
+   The input callback may kill the network by writing to it's boolean
+   argument.  */
 class input_rtt : public rt_thread
 {
 public:
@@ -205,14 +221,14 @@ public:
     rts_checking_assert (m_cb != nullptr && m_buffer != nullptr);
 
     bool killed = false;
-    while (!killed && m_alive.load (std::memory_order_acquire))
+    while (!killed && m_alive.load (std::memory_order_relaxed))
       {
 	m_buffer->write (m_cb (&killed));
 	wait_rest_of_period ();
       }
 
     /* Propagate death.  */
-    m_alive.store (false, std::memory_order_release);
+    m_alive.store (false, std::memory_order_relaxed);
   }
 
 private:
@@ -222,6 +238,8 @@ private:
   std::vector<uint32_t> (*m_cb) (bool *) = nullptr;
 };
 
+/* A thread which reads from the buffer M_BUFFER written to by the thread(s)
+   handling the output layer of the network and passes it to callback M_CB.  */
 class output_rtt : public rt_thread
 {
 public:
@@ -247,7 +265,7 @@ public:
   {
     rts_checking_assert (m_cb != nullptr && m_buffer != nullptr);
 
-    while (m_alive.load (std::memory_order_acquire))
+    while (m_alive.load (std::memory_order_relaxed))
       {
 	m_cb (m_buffer->read ());
 	wait_rest_of_period ();

@@ -9,8 +9,8 @@
 class network
 {
 public:
-  network (uint32_t threads=2, uint64_t period_ns=300000,
-	   uint32_t profile_iters=100)
+  network (uint32_t threads=2, uint64_t period_ns=1000000,
+	   uint32_t profile_iters=10)
     : m_threads (threads), m_period_ns (period_ns),
       m_profile_iters (profile_iters), m_input_thread (period_ns),
       m_output_thread (period_ns)
@@ -61,8 +61,7 @@ public:
     assert (m_initialised);
     rts_checking_assert (!m_layers.empty ());
 
-    /* Select a start time conservatively far from now.  TODO: modify
-       wait_rest_of_period to catch a potential violation here.  */
+    /* Select a start time conservatively far from now.  */
     timespec abs_start;
     clock_gettime (CLOCK_MONOTONIC, &abs_start);
     /* ??? 50ms.  */
@@ -75,16 +74,26 @@ public:
       {
 	ret = thread.start (abs_start);
 	if (ret)
-	  return ret;
+	  {
+	    /* Bail!  */
+	    kill ();
+	    return ret;
+	  }
       }
     /* ... I/O threads.  */
     ret = m_output_thread.start (abs_start);
     if (ret)
-      return ret;
+      {
+	kill ();
+	return ret;
+      }
 
     ret = m_input_thread.start (abs_start);
     if (ret)
-      return ret;
+      {
+	kill ();
+	return ret;
+      }
 
     /* Wait for the input thread to die, then kill everything else.  */
     m_input_thread.join ();
