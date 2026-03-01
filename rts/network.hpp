@@ -108,7 +108,7 @@ public:
     /* We're responsible for the buffers allocated between layers,
        we have that BUFFER_RD for layer_i is BUFF_WR for layer_{i-1}
        and so forth...  */
-    if (!m_layers.size ())
+    if (!m_layers.size () || !m_initialised)
       return;
 
     delete m_layers[0]->m_buffer_rd;
