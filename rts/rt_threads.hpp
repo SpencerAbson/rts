@@ -140,6 +140,8 @@ public:
       m_policy (other.m_policy), m_priority (other.m_priority)
   {}
 
+  virtual ~rt_thread () = default;
+
 private:
   /* Copy of network-wide period parameter.  */
   uint64_t m_period_ns;
@@ -199,27 +201,14 @@ class input_rtt : public rt_thread
 {
 public:
 
-  input_rtt (uint64_t period_ns, int policy=SCHED_FIFO, int priority=80)
-    : rt_thread (period_ns, policy, priority)
+  input_rtt (uint64_t period_ns, std::vector<uint32_t> (*cb) (bool *),
+	     spikebuffer *buff, int policy=SCHED_FIFO, int priority=80)
+    : rt_thread (period_ns, policy, priority), m_buffer (buff), m_cb (cb)
   {}
-
-  void
-  set_callback (std::vector<uint32_t> (*cb) (bool *))
-  {
-    m_cb = cb;
-  }
-
-  void
-  set_buffer (spikebuffer *buff)
-  {
-    m_buffer = buff;
-  }
 
   void
   run ()
   {
-    rts_checking_assert (m_cb != nullptr && m_buffer != nullptr);
-
     bool killed = false;
     while (!killed && m_alive.load (std::memory_order_relaxed))
       {
@@ -244,27 +233,14 @@ class output_rtt : public rt_thread
 {
 public:
 
-  output_rtt (uint64_t period_ns, int policy=SCHED_FIFO, int priority=80)
-    : rt_thread (period_ns, policy, priority)
+  output_rtt (uint64_t period_ns, void (*cb) (const std::vector<uint32_t> &),
+	      spikebuffer *buff, int policy=SCHED_FIFO, int priority=80)
+    : rt_thread (period_ns, policy, priority), m_buffer (buff), m_cb (cb)
   {}
-
-  void
-  set_callback (void (*cb) (const std::vector<uint32_t> &))
-  {
-    m_cb = cb;
-  }
-
-  void
-  set_buffer (spikebuffer *buff)
-  {
-    m_buffer = buff;
-  }
 
   void
   run ()
   {
-    rts_checking_assert (m_cb != nullptr && m_buffer != nullptr);
-
     while (m_alive.load (std::memory_order_relaxed))
       {
 	m_cb (m_buffer->read ());

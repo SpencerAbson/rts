@@ -11,12 +11,11 @@ class network
 public:
   network (uint32_t threads=2, uint64_t period_ns=1000000,
 	   uint32_t profile_iters=10)
-    : m_threads (threads), m_period_ns (period_ns),
-      m_profile_iters (profile_iters), m_input_thread (period_ns),
-      m_output_thread (period_ns)
+    : m_num_threads (threads), m_period_ns (period_ns),
+      m_profile_iters (profile_iters)
   {
     /* Better to catch nonesense now than later on...  */
-    assert (m_threads && period_ns && m_profile_iters);
+    assert (m_num_threads && period_ns && m_profile_iters);
   }
 
   void
@@ -41,16 +40,20 @@ public:
 	  layer->profile_batch (m_profile_iters);
       }
 
-    /* Distribute the layers across M_THREADS partitions.  */
+    /* Distribute the layers across M_NUM_THREADS partitions.  */
     linear_partitioning ();
 
-    /* Set the input thread callback/buffer.  */
-    m_input_thread.set_callback (input_cb);
-    m_input_thread.set_buffer (m_layers.front ()->m_buffer_rd);
+    /* Create the input thread, and keep a copy of it's address.  */
+    auto input_thread
+      = std::make_unique<input_rtt> (m_period_ns, input_cb,
+				    m_layers.front ()->m_buffer_rd);
+    m_input_thread = input_thread.get ();
+    m_threads.push_back (std::move (input_thread));
 
-    /* Likewise for the output thread.  */
-    m_output_thread.set_callback (output_cb);
-    m_output_thread.set_buffer (m_layers.back ()->m_buffer_wr);
+    /* Create the output thread.  */
+    m_threads.push_back
+      (std::make_unique<output_rtt> (m_period_ns, output_cb,
+				     m_layers.back ()->m_buffer_wr));
 
     m_initialised = true;
   }
@@ -59,7 +62,7 @@ public:
   run ()
   {
     assert (m_initialised);
-    rts_checking_assert (!m_layers.empty ());
+    rts_checking_assert (!m_layers.empty () && m_input_thread != nullptr);
 
     /* Select a start time conservatively far from now.  */
     timespec abs_start;
@@ -70,9 +73,9 @@ public:
 
     /* Start the network threads.  */
     int ret;
-    for (auto &thread : m_network_threads)
+    for (auto &thread : m_threads)
       {
-	ret = thread.start (abs_start);
+	ret = thread->start (abs_start);
 	if (ret)
 	  {
 	    /* Bail!  */
@@ -80,25 +83,10 @@ public:
 	    return ret;
 	  }
       }
-    /* ... I/O threads.  */
-    ret = m_output_thread.start (abs_start);
-    if (ret)
-      {
-	kill ();
-	return ret;
-      }
-
-    ret = m_input_thread.start (abs_start);
-    if (ret)
-      {
-	kill ();
-	return ret;
-      }
 
     /* Wait for the input thread to die, then kill everything else.  */
-    m_input_thread.join ();
+    m_input_thread->join ();
     kill ();
-
     return 0;
   }
 
@@ -122,23 +110,20 @@ private:
   kill ()
   {
     /* Killemall.  */
-    for (auto &thread : m_network_threads)
-      thread.kill ();
-
-    m_input_thread.kill ();
-    m_output_thread.kill ();
+    for (auto &thread : m_threads)
+      thread->kill ();
   }
 
   void
   linear_partitioning ()
   {
-    rts_checking_assert (m_network_threads.empty () && m_layers.size ());
+    rts_checking_assert (m_threads.empty () && m_layers.size ());
 
     /* Calculate the target load for each partition.  */
     uint64_t target = 0;
     for (const auto &layer : m_layers)
       target += layer->batch_cost () * layer->total_batches ();
-    target /= m_threads;
+    target /= m_num_threads;
 
     /* We'll allocate buffers as we go.  We know that the first buffer (that
        which receives data from the callback input and is read by the first
@@ -176,7 +161,8 @@ private:
 		    begin = end;
 		  }
 		/* Record the current partition.  */
-		m_network_threads.emplace_back (m_period_ns, sublayers);
+		m_threads.push_back
+		  (std::make_unique<network_rtt> (m_period_ns, sublayers));
 		/* Reset SUBLAYERS and PARITION_COST.  */
 		sublayers.clear ();
 		partition_cost = batch_cost - (target - partition_cost);
@@ -199,14 +185,15 @@ private:
 	layer->m_buffer_wr = buffer_prev;
       }
     /* Record the final parition.  */
-    m_network_threads.emplace_back (m_period_ns, sublayers);
+    m_threads.push_back
+      (std::make_unique<network_rtt> (m_period_ns, sublayers));
     /* We know that the final buffer (that which receives data from the last
        layer and is read by the output callback) has exactly one reader.  */
     buffer_prev->set_readers (1);
   }
 
   /* The number of threads used to parallelise the network.  */
-  uint32_t m_threads;
+  uint32_t m_num_threads;
   /* RT cyclic period.  */
   uint64_t m_period_ns;
   /* Number of profile measurements to take the arithmetic mean over.  */
@@ -215,9 +202,8 @@ private:
   std::vector<std::unique_ptr<layer>> m_layers;
 
   /* RT thread objects.  */
-  input_rtt m_input_thread;
-  output_rtt m_output_thread;
-  std::vector<network_rtt> m_network_threads;
+  input_rtt *m_input_thread = nullptr;
+  std::vector<std::unique_ptr<rt_thread>> m_threads;
 
   bool m_initialised = false;
 };
