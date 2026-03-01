@@ -2,15 +2,16 @@
 #define LINEAR_LIF_H_
 
 #include <arm_neon.h>
+#include <type_traits>
 #include "layer.hpp"
 
+template <typename T>
 class linear_lif : public layer
 {
 public:
 
-  linear_lif (tensor<float> weights, std::vector<float> bias,
-	      uint32_t batch_size, float beta=0.8f, float v_thresh=1.0f,
-	      uint64_t batch_cost=COST_UNDEF)
+  linear_lif (tensor<T> weights, std::vector<T> bias, uint32_t batch_size,
+	      T beta=0.8, T v_thresh=1.0, uint64_t batch_cost=COST_UNDEF)
     : layer (weights.shape[0], weights.shape[1], batch_size, batch_cost),
       m_weights (weights),
       m_bias (bias),
@@ -18,20 +19,69 @@ public:
       m_v_thresh (v_thresh),
       m_v_membrane (weights.shape[1])
   {
+    static_assert (std::is_same_v<T, float>,
+		   "Invalid type construction for linear_lif");
+
     assert (weights.shape.size () == 2
 	    && weights.shape[1] == bias.size ());
   }
 
-  /* It's difficult to parallelise this update given the binary COO encoded
-     SPIKES_IN buffer because NEON lacks gather-loads/scatter-stores.
-
-     The approach taken here is vectorize along the columns of the weight
-     matrix, which gives a highly predictable access pattern.  */
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
 		    uint32_t batch_begin, uint32_t batch_end)
   {
     rts_checking_assert (batch_end > batch_begin);
+
+    return ts_batched_f32 (spikes_in, batch_begin, batch_end);
+  }
+
+  std::vector<uint32_t>
+  timestep (const std::vector<uint32_t> &spikes_in)
+  {
+    return timestep_batched (spikes_in, 0, m_num_outputs);
+  }
+
+  void
+  time_worstcase (uint32_t iterations, uint32_t batch_size,
+		  struct timespec &start, struct timespec &end)
+  {
+    /* Save the state of any variable dynamics.  */
+    std::vector<float> membrane_init = m_v_membrane;
+
+    /* Worst case here is when SPIKES_IN contains all of
+       0...(M_NUM_INPUTS-1).  */
+    std::vector<uint32_t> spike_in;
+    for (uint32_t i = 0; i < m_num_inputs; i++)
+      spike_in.push_back (i);
+
+    /* Shuffle this to (hopefully) avoid an optimistically linear
+       access pattern.  */
+    std::random_device rd;
+    std::mt19937 g (rd ());
+    std::shuffle (spike_in.begin (), spike_in.end (), g);
+
+    clock_gettime (CLOCK_MONOTONIC, &start);
+    for (uint32_t i = 0; i < iterations; i++)
+      timestep_batched (spike_in, 0, batch_size);
+    clock_gettime (CLOCK_MONOTONIC, &end);
+
+    /* Restore state.  */
+    m_v_membrane = membrane_init;
+  }
+
+private:
+
+  /* Vectorised batched timestep definitions.
+
+     It's difficult to parallelise this update given the binary COO encoded
+     SPIKES_IN buffer because NEON lacks gather-loads/scatter-stores.
+
+     The approach taken here is vectorize along the columns of the weight
+     matrix, which gives a highly predictable access pattern.  */
+  std::vector<uint32_t>
+  ts_batched_f32 (const std::vector<uint32_t> &spikes_in,
+		  uint32_t batch_begin, uint32_t batch_end)
+  {
     /* Limit before epilogue for a VF of 4.  */
     uint32_t max_neon = batch_begin + ((batch_end - batch_begin) & ~0x03);
     /* Vectorised constants for dynamics.  */
@@ -94,50 +144,14 @@ public:
     return spike_out;
   }
 
-  std::vector<uint32_t>
-  timestep (const std::vector<uint32_t> &spikes_in)
-  {
-    return timestep_batched (spikes_in, 0, m_num_outputs);
-  }
-
-  void
-  time_worstcase (uint32_t iterations, uint32_t batch_size,
-		  struct timespec &start, struct timespec &end)
-  {
-    /* Save the state of any variable dynamics.  */
-    std::vector<float> membrane_init = m_v_membrane;
-
-    /* Worst case here is when SPIKES_IN contains all of
-       0...(M_NUM_INPUTS-1).  */
-    std::vector<uint32_t> spike_in;
-    for (uint32_t i = 0; i < m_num_inputs; i++)
-      spike_in.push_back (i);
-
-    /* Shuffle this to (hopefully) avoid an optimistically linear
-       access pattern.  */
-    std::random_device rd;
-    std::mt19937 g (rd ());
-    std::shuffle (spike_in.begin (), spike_in.end (), g);
-
-    clock_gettime (CLOCK_MONOTONIC, &start);
-    for (uint32_t i = 0; i < iterations; i++)
-      timestep_batched (spike_in, 0, batch_size);
-    clock_gettime (CLOCK_MONOTONIC, &end);
-
-    /* Restore state.  */
-    m_v_membrane = membrane_init;
-  }
-
-private:
-
   /* Linear parameters.  */
-  tensor<float> m_weights;
-  std::vector<float> m_bias;
+  tensor<T> m_weights;
+  std::vector<T> m_bias;
 
   /* LIF dynamics.  */
-  float m_beta;
-  float m_v_thresh;
-  std::vector<float> m_v_membrane;
+  T m_beta;
+  T m_v_thresh;
+  std::vector<T> m_v_membrane;
 };
 
 #endif // LINEAR_LIF_H_
