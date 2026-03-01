@@ -43,7 +43,7 @@ public:
     /* Distribute the layers across M_NUM_THREADS partitions.  */
     linear_partitioning ();
 
-    /* Create the input thread, and keep a copy of it's address.  */
+    /* Create the input thread and keep a copy of its address.  */
     auto input_thread
       = std::make_unique<input_rtt> (m_period_ns, input_cb,
 				    m_layers.front ()->m_buffer_rd);
@@ -64,18 +64,20 @@ public:
     assert (m_initialised);
     rts_checking_assert (!m_layers.empty () && m_input_thread != nullptr);
 
-    /* Select a start time conservatively far from now.  */
-    timespec abs_start;
-    clock_gettime (CLOCK_MONOTONIC, &abs_start);
-    /* ??? 50ms.  */
-    abs_start.tv_nsec += 5000000;
-    handle_timespec_overflow (&abs_start);
-
-    /* Start the network threads.  */
     int ret;
+    pthread_barrier_t barrier;
+    /* We'll use a barrier to synchronise the start time of each thread.  */
+    ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
+    if (ret)
+      {
+	debug_perror ("pthread_barrier_init");
+	debug_printf ("Failed to create synchonisation barrier.\n");
+      }
+
+    /* Create and run all threads.  */
     for (auto &thread : m_threads)
       {
-	ret = thread->start (abs_start);
+	ret = thread->start (&barrier);
 	if (ret)
 	  {
 	    /* Bail!  */
@@ -87,6 +89,14 @@ public:
     /* Wait for the input thread to die, then kill everything else.  */
     m_input_thread->join ();
     kill ();
+
+    ret = pthread_barrier_destroy (&barrier);
+    if (ret)
+      {
+	debug_perror ("pthread_barrier_destroy");
+	debug_printf ("Failed to destroy synchonisation barrier.\n");
+      }
+
     return 0;
   }
 

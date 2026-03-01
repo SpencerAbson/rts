@@ -22,7 +22,7 @@ public:
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
   int
-  start (timespec start)
+  start (pthread_barrier_t *barrier)
   {
     pthread_attr_t attr;
     int ret = pthread_attr_init (&attr);
@@ -63,8 +63,8 @@ public:
 	return ret;
       }
 
-    /* Copy the start time.  */
-    m_timer = start;
+    /* Copy the barrier over.  */
+    m_barrier = barrier;
     /* Create the thread.  */
     ret = pthread_create (&m_id, &attr, runner, (void *)this);
     return 0;
@@ -105,11 +105,14 @@ public:
   runner (void *arg)
   {
     rt_thread *thread = (rt_thread *)arg;
+    rts_checking_assert (thread->m_barrier != nullptr);
 
     /* Set state to alive.  */
     thread->m_alive.store (true, std::memory_order_relaxed);
-    /* Sleep until the absolute start time.  */
-    clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &thread->m_timer, NULL);
+    /* Sleep until everyone else is ready.  */
+    pthread_barrier_wait (thread->m_barrier);
+    /* Set the timer.  */
+    clock_gettime (CLOCK_MONOTONIC, &thread->m_timer);
 
     /* Run!  */
     thread->run ();
@@ -127,8 +130,10 @@ public:
     clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
   }
 
-  /* Timer, initially the absolute start time.  */
+  /* Local timer.  */
   timespec m_timer;
+  /* To synchronise with everyone else at the start.  */
+  pthread_barrier_t *m_barrier = nullptr;
   /* Killswitch.  */
   std::atomic<bool> m_alive {false};
 
