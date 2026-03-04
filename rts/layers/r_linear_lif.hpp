@@ -181,12 +181,6 @@ public:
     return spike_out;
   }
 
-  std::vector<uint32_t>
-  timestep (const std::vector<uint32_t> &spikes_in)
-  {
-    return timestep_batched (spikes_in, 0, m_num_outputs);
-  }
-
   void
   time_worstcase (uint32_t iterations, uint32_t batch_size,
 		  struct timespec &start, struct timespec &end)

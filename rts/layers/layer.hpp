@@ -17,8 +17,6 @@ public:
     assert (num_outputs % batch_size == 0);
   }
 
-  /* Simulate one timestep of the entire layer.  */
-  virtual std::vector<uint32_t> timestep (const std::vector<uint32_t>&) = 0;
   /* Simulate one timestep for a subbatch of this layer.  */
   virtual std::vector<uint32_t> timestep_batched (const std::vector<uint32_t>&,
 						  uint32_t, uint32_t) = 0;
@@ -53,6 +51,13 @@ public:
   uint32_t total_batches () const
   {
     return m_num_outputs / m_batch_size;
+  }
+
+  /* Simulate one timestep of the entire layer.  */
+  std::vector<uint32_t>
+  timestep (const std::vector<uint32_t> &spikes_in)
+  {
+    return timestep_batched (spikes_in, 0, m_num_outputs);
   }
 
   /* Simulate one timestep using input spikes read from M_BUFFER_RD, and write
