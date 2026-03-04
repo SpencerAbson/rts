@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <cassert>
+#include <time.h>
 
 #ifdef EN_CHECKING_ASSERT
 #define rts_checking_assert(EXPR)		\

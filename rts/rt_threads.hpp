@@ -1,105 +1,30 @@
 #ifndef RT_THREADS_H_
 #define RT_THREADS_H_
 
-#include <sched.h>
-#include <pthread.h>
 #include <atomic>
-#include "util.h"
+#include "buffers.hpp"
 #include "layers/layer.hpp"
 
-
+/* pthread_t wrapper.  */
 class rt_thread
 {
 public:
-
-  rt_thread (uint64_t period_ns, int priority=80)
-    : m_period_ns (period_ns), m_priority (priority)
-  {};
+  rt_thread (uint64_t period_ns, int priority=80);
+  virtual ~rt_thread () = default;
 
   /* RT cyclic task implementation.  */
   virtual void run () = 0;
-
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
   int
-  start (pthread_barrier_t *barrier)
-  {
-    pthread_attr_t attr;
-    int ret = pthread_attr_init (&attr);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_init");
-	debug_printf ("Failed to initialise pthread attrs.\n");
-	return ret;
-      }
-
-    /* Set scheduler policy.  */
-    ret = pthread_attr_setschedpolicy (&attr, SCHED_FIFO);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_setschedpolicy");
-	debug_printf ("Failed to set pthread scheduler policy.\n");
-	return ret;
-      }
-
-    /* Set scheduler priority.  */
-    struct sched_param param;
-    param.sched_priority = m_priority;
-    ret = pthread_attr_setschedparam (&attr, &param);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_setschedparam");
-	debug_printf ("Failed to set pthread scheduler priority.\n");
-	return ret;
-      }
-
-    /* Ensure pthread_create uses our ATTR rather than those of the
-       parent thread.  */
-    ret = pthread_attr_setinheritsched (&attr, PTHREAD_EXPLICIT_SCHED);
-    if (ret)
-      {
-	debug_perror ("pthread_attr_setinheritsched");
-	debug_printf ("Failed to set pthread scheduler attributes.\n");
-	return ret;
-      }
-
-    /* Copy the barrier over.  */
-    m_barrier = barrier;
-    /* Create the thread.  */
-    ret = pthread_create (&m_id, &attr, runner, (void *)this);
-    return 0;
-  }
-
+  start (pthread_barrier_t *barrier);
   /* Wrapper on pthread_join.  */
   int
-  join ()
-  {
-    int ret = pthread_join (m_id, NULL);
-    if (ret)
-      {
-	debug_perror ("pthread_join");
-	debug_printf ("Failed to join pthread.\n");
-      }
-
-    return ret;
-  }
-
+  join ();
   /* Kill and join, returning 0 on success and a pthread error
      code otherwise.  */
   int
-  kill ()
-  {
-    int ret = 0;
-    if (m_alive.load (std::memory_order_acquire))
-      {
-	m_alive.store (false, std::memory_order_relaxed);
-	ret = join ();
-      }
-    if (ret)
-      debug_printf ("Failed to properly kill pthread.\n");
-
-    return ret;
-  }
+  kill ();
 
   static void*
   runner (void *arg)
@@ -122,13 +47,7 @@ public:
   /* Sleep until we reach time T'=T+period.  TODO: warn if current time
      is > T'.  */
   void
-  wait_rest_of_period ()
-  {
-    m_timer.tv_nsec += m_period_ns;
-    handle_timespec_overflow (&m_timer);
-
-    clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
-  }
+  wait_rest_of_period ();
 
   /* Local timer.  */
   timespec m_timer;
@@ -144,8 +63,6 @@ public:
       m_id (other.m_id), m_priority (other.m_priority)
   {}
 
-  virtual ~rt_thread () = default;
-
 private:
   /* Copy of network-wide period parameter.  */
   uint64_t m_period_ns;
@@ -153,6 +70,7 @@ private:
   pthread_t m_id;
   int m_priority;
 };
+
 
 /* The natural interval [BEGIN, END) represents a contigious part of
    layer L's neurons that we refer to as a 'sublayer'.  It is the job
@@ -172,23 +90,10 @@ struct sublayer
 class network_rtt : public rt_thread
 {
 public:
-
   network_rtt (uint64_t period_ns, std::vector<sublayer> slayers,
-	       int priority=80)
-    : rt_thread (period_ns, priority), m_sublayers (slayers)
-  {}
-
+	       int priority=80);
   void
-  run ()
-  {
-    while (m_alive.load (std::memory_order_relaxed))
-      {
-	for (sublayer &slayer : m_sublayers)
-	  slayer.l->run (slayer.begin, slayer.end);
-
-	wait_rest_of_period ();
-      }
-  }
+  run ();
 
 private:
   /* Workload.  */
@@ -203,25 +108,10 @@ private:
 class input_rtt : public rt_thread
 {
 public:
-
   input_rtt (uint64_t period_ns, std::vector<uint32_t> (*cb) (bool *),
-	     spikebuffer *buff, int priority=80)
-    : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
-  {}
-
+	     spikebuffer *buff, int priority=80);
   void
-  run ()
-  {
-    bool killed = false;
-    while (!killed && m_alive.load (std::memory_order_relaxed))
-      {
-	m_buffer->write (m_cb (&killed));
-	wait_rest_of_period ();
-      }
-
-    /* Propagate death.  */
-    m_alive.store (false, std::memory_order_relaxed);
-  }
+  run ();
 
 private:
   /* Written to by us only, read by threads running the first layer.  */
@@ -235,21 +125,10 @@ private:
 class output_rtt : public rt_thread
 {
 public:
-
   output_rtt (uint64_t period_ns, void (*cb) (const std::vector<uint32_t> &),
-	      spikebuffer *buff, int priority=80)
-    : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
-  {}
-
+	      spikebuffer *buff, int priority=80);
   void
-  run ()
-  {
-    while (m_alive.load (std::memory_order_relaxed))
-      {
-	m_cb (m_buffer->read ());
-	wait_rest_of_period ();
-      }
-  }
+  run ();
 
 private:
   /* Written to by threads running the last layer, read by us only.  */
