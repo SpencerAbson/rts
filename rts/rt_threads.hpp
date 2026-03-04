@@ -12,8 +12,8 @@ class rt_thread
 {
 public:
 
-  rt_thread (uint64_t period_ns, int policy=SCHED_FIFO, int priority=80)
-    : m_period_ns (period_ns), m_policy (policy), m_priority (priority)
+  rt_thread (uint64_t period_ns, int priority=80)
+    : m_period_ns (period_ns), m_priority (priority)
   {};
 
   /* RT cyclic task implementation.  */
@@ -34,7 +34,7 @@ public:
       }
 
     /* Set scheduler policy.  */
-    ret = pthread_attr_setschedpolicy (&attr, m_policy);
+    ret = pthread_attr_setschedpolicy (&attr, SCHED_FIFO);
     if (ret)
       {
 	debug_perror ("pthread_attr_setschedpolicy");
@@ -137,12 +137,11 @@ public:
   /* Killswitch.  */
   std::atomic<bool> m_alive {false};
 
-  /* I would leave this as default but the compiler understandably deletes
-     the default copy constructor on atomics...   */
+  /* The compiler deletes the default CC when the class contains an atomic.  */
   rt_thread (const rt_thread& other)
-    : m_timer (other.m_timer), m_alive (other.m_alive.load ()),
-      m_period_ns (other.m_period_ns), m_id (other.m_id),
-      m_policy (other.m_policy), m_priority (other.m_priority)
+    : m_timer (other.m_timer), m_barrier (other.m_barrier),
+      m_alive (other.m_alive.load ()), m_period_ns (other.m_period_ns),
+      m_id (other.m_id), m_priority (other.m_priority)
   {}
 
   virtual ~rt_thread () = default;
@@ -152,7 +151,6 @@ private:
   uint64_t m_period_ns;
   /* pthread API info.  */
   pthread_t m_id;
-  int m_policy;
   int m_priority;
 };
 
@@ -176,8 +174,8 @@ class network_rtt : public rt_thread
 public:
 
   network_rtt (uint64_t period_ns, std::vector<sublayer> slayers,
-	       int policy=SCHED_FIFO, int priority=80)
-    : rt_thread (period_ns, policy, priority), m_sublayers (slayers)
+	       int priority=80)
+    : rt_thread (period_ns, priority), m_sublayers (slayers)
   {}
 
   void
@@ -207,8 +205,8 @@ class input_rtt : public rt_thread
 public:
 
   input_rtt (uint64_t period_ns, std::vector<uint32_t> (*cb) (bool *),
-	     spikebuffer *buff, int policy=SCHED_FIFO, int priority=80)
-    : rt_thread (period_ns, policy, priority), m_buffer (buff), m_cb (cb)
+	     spikebuffer *buff, int priority=80)
+    : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
   {}
 
   void
@@ -239,8 +237,8 @@ class output_rtt : public rt_thread
 public:
 
   output_rtt (uint64_t period_ns, void (*cb) (const std::vector<uint32_t> &),
-	      spikebuffer *buff, int policy=SCHED_FIFO, int priority=80)
-    : rt_thread (period_ns, policy, priority), m_buffer (buff), m_cb (cb)
+	      spikebuffer *buff, int priority=80)
+    : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
   {}
 
   void
