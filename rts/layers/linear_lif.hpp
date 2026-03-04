@@ -79,10 +79,12 @@ public:
 	for (uint32_t spike : spikes_in)
 	  {
 	    rts_checking_assert (spike < m_weights.shape[0]);
+
+	    const uint32_t offset = spike * m_weights.stride[0];
 	    for (uint32_t i = batch_begin; i < max_neon; i+=4)
 	      {
 		float32x4_t weight_slice
-		  = vld1q_f32 (&m_weights.vec[i + spike * m_weights.stride[0]]);
+		  = vld1q_f32 (&m_weights.vec[offset + i]);
 
 		membrane = vld1q_f32 (&m_v_membrane[i]);
 		membrane = vaddq_f32 (membrane, weight_slice);
@@ -91,7 +93,7 @@ public:
 	      }
 	    /* Scalar epilogue.  */
 	    for (uint32_t i = max_neon; i < batch_end; i++)
-	      m_v_membrane[i] += m_weights.vec[i + spike * m_weights.stride[0]];
+	      m_v_membrane[i] += m_weights.vec[offset + i];
 	  }
       }
     else
@@ -133,10 +135,12 @@ public:
 	for (uint32_t spike : spikes_in)
 	  {
 	    rts_checking_assert (spike < m_weights.shape[0]);
+
+	    const uint32_t offset = spike * m_weights.stide[0];
 	    for (uint32_t i = batch_begin; i < max_neon; i+=8)
 	      {
 		float16x8_t weight_slice
-		  = vld1q_f16 (&m_weights.vec[i + spike * m_weights.stride[0]]);
+		  = vld1q_f16 (&m_weights.vec[offset + i]);
 
 		membrane = vld1q_f16 (&m_v_membrane[i]);
 		membrane = vaddq_f16 (membrane, weight_slice);
@@ -145,7 +149,7 @@ public:
 	      }
 	    /* Scalar epilogue.  */
 	    for (uint32_t i = max_neon; i < batch_end; i++)
-	      m_v_membrane[i] += m_weights.vec[i + spike * m_weights.stride[0]];
+	      m_v_membrane[i] += m_weights.vec[offset + i];
 	  }
       }
 

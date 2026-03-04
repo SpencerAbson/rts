@@ -77,11 +77,12 @@ public:
     for (uint32_t spike : spikes_in)
       {
 	rts_checking_assert (spike < m_weights_in.shape[0]);
+
+	const uint32_t offset = spike * m_weights_in.stride[0];
 	for (uint32_t i = batch_begin; i < max_neon; i+=4)
 	  {
 	    float32x4_t weight_slice
-	      = vld1q_f32 (&m_weights_in.vec[i + spike
-					     * m_weights_in.stride[0]]);
+	      = vld1q_f32 (&m_weights_in.vec[offset + i]);
 
 	    membrane = vld1q_f32 (&m_v_membrane[i]);
 	    membrane = vaddq_f32 (membrane, weight_slice);
@@ -90,19 +91,19 @@ public:
 	  }
 	/* Scalar epilogue.  */
 	for (uint32_t i = max_neon; i < batch_end; i++)
-	  m_v_membrane[i]
-	    += m_weights_in.vec[i + spike * m_weights_in.stride[0]];
+	  m_v_membrane[i] += m_weights_in.vec[offset + i];
       }
 
     /* Handle the recurrent spikes.  */
     for (uint32_t spike : m_spike_out)
       {
 	rts_checking_assert (spike < m_weights_rec.shape[0]);
+
+	const uint32_t offset = spike * m_weights_rec.stride[0];
 	for (uint32_t i = batch_begin; i < max_neon; i+=4)
 	  {
 	    float32x4_t weight_slice
-	      = vld1q_f32 (&m_weights_rec.vec[i + spike
-					     * m_weights_rec.stride[0]]);
+	      = vld1q_f32 (&m_weights_rec.vec[offset + i]);
 
 	    membrane = vld1q_f32 (&m_v_membrane[i]);
 	    membrane = vaddq_f32 (membrane, weight_slice);
@@ -111,8 +112,7 @@ public:
 	  }
 	/* Scalar epilogue.  */
 	for (uint32_t i = max_neon; i < batch_end; i++)
-	  m_v_membrane[i]
-	    += m_weights_rec.vec[i + spike * m_weights_rec.stride[0]];
+	  m_v_membrane[i] += m_weights_rec.vec[offset + i];
       }
 
     /* NOTE: This is clearly not thread-safe, but we've guaranteed that this
