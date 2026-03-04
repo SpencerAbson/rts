@@ -9,13 +9,11 @@
 class network
 {
 public:
-  network (uint32_t threads=2, uint64_t period_ns=1000000,
-	   uint32_t profile_iters=10)
-    : m_num_threads (threads), m_period_ns (period_ns),
-      m_profile_iters (profile_iters)
+  network (uint32_t threads=2, uint64_t period_ns=1000000)
+    : m_num_threads (threads), m_period_ns (period_ns)
   {
     /* Better to catch nonesense now than later on...  */
-    assert (m_num_threads && period_ns && m_profile_iters);
+    assert (m_num_threads && period_ns);
   }
 
   void
@@ -37,7 +35,7 @@ public:
     for (auto &layer : m_layers)
       {
 	if (layer->batch_cost () == COST_UNDEF)
-	  layer->profile_batch (m_profile_iters);
+	  layer->profile_batch ();
       }
 
     /* Distribute the layers across M_NUM_THREADS partitions.  */
@@ -206,8 +204,6 @@ private:
   uint32_t m_num_threads;
   /* RT cyclic period.  */
   uint64_t m_period_ns;
-  /* Number of profile measurements to take the arithmetic mean over.  */
-  uint32_t m_profile_iters;
   /* The layers of a sequential spiking neural network (in order).  */
   std::vector<std::unique_ptr<layer>> m_layers;
 

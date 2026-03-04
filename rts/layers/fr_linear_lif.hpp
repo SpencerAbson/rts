@@ -128,9 +128,9 @@ public:
     return m_spike_out;
   }
 
-  void
-  time_worstcase (uint32_t iterations, uint32_t batch_size,
-		  struct timespec &start, struct timespec &end)
+
+  uint64_t
+  time_batch_worstcase_ns ()
   {
     /* Save the state of any variable dynamics.  */
     std::vector<float> membrane_init = m_v_membrane;
@@ -149,17 +149,17 @@ public:
     std::mt19937 g (rd ());
     std::shuffle (spike_in.begin (), spike_in.end (), g);
 
-    for (uint32_t i = 0; i < m_num_outputs; i++)
-      m_spike_out.push_back (i);
-
+    timespec start, end;
     clock_gettime (CLOCK_MONOTONIC, &start);
-    for (uint32_t i = 0; i < iterations; i++)
-      timestep_batched (spike_in, 0, batch_size);
+    timestep_batched (spike_in, 0, m_batch_size);
     clock_gettime (CLOCK_MONOTONIC, &end);
 
     /* Restore state.  */
     m_v_membrane = membrane_init;
     m_spike_out = spikes_out_init;
+
+    return (end.tv_sec - start.tv_sec) * 1E9
+      + end.tv_nsec - start.tv_nsec;
   }
 
 private:

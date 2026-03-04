@@ -164,9 +164,8 @@ public:
     return spike_out;
   }
 
-  void
-  time_worstcase (uint32_t iterations, uint32_t batch_size,
-		  struct timespec &start, struct timespec &end)
+  uint64_t
+  time_batch_worstcase_ns ()
   {
     /* Save the state of any variable dynamics.  */
     std::vector<T> membrane_init = m_v_membrane;
@@ -177,19 +176,16 @@ public:
     for (uint32_t i = 0; i < m_num_inputs; i++)
       spike_in.push_back (i);
 
-    /* Shuffle this to (hopefully) avoid an optimistically linear
-       access pattern.  */
-    std::random_device rd;
-    std::mt19937 g (rd ());
-    std::shuffle (spike_in.begin (), spike_in.end (), g);
-
+    timespec start, end;
     clock_gettime (CLOCK_MONOTONIC, &start);
-    for (uint32_t i = 0; i < iterations; i++)
-      timestep_batched (spike_in, 0, batch_size);
+    timestep_batched (spike_in, 0, m_batch_size);
     clock_gettime (CLOCK_MONOTONIC, &end);
 
     /* Restore state.  */
     m_v_membrane = membrane_init;
+
+    return (end.tv_sec - start.tv_sec) * 1E9
+      + end.tv_nsec - start.tv_nsec;
   }
 
 private:

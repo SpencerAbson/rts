@@ -23,9 +23,7 @@ public:
   /* Many factors influence performance at runtime.  But in the absence of user-
      provided profile information (COST_UNDEF), a rough estimate can be made by
      profiling each layer at their own worst case input.  */
-  virtual void time_worstcase (uint32_t iterations, uint32_t batch_size,
-			       struct timespec &tstart,
-			       struct timespec &tend) = 0;
+  virtual uint64_t time_batch_worstcase_ns () = 0;
 
   uint32_t input_size ()  const
   {
@@ -78,16 +76,11 @@ private:
   friend class network;
 
   void
-  profile_batch (uint32_t iterations)
+  profile_batch ()
   {
-    struct timespec start, end;
-    time_worstcase (iterations, m_batch_size, start, end);
-
-    m_batch_cost_ns = ((end.tv_sec - start.tv_sec) * 1000000000
-	+ end.tv_nsec - start.tv_nsec) / iterations;
-
-    debug_printf ("\nProfiler information\niterations: %u\nbatch size: \
-%u\ncost: %lu (ns)\n", iterations, m_batch_size, m_batch_cost_ns);
+    m_batch_cost_ns = time_batch_worstcase_ns ();
+    debug_printf ("\nProfiler information\n\nbatch size: \
+%u\ncost: %lu (ns)\n", m_batch_size, m_batch_cost_ns);
   }
 
   std::vector<uint32_t>
