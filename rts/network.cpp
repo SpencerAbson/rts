@@ -61,7 +61,6 @@ network::initialise (std::vector<uint32_t> (*input_cb) (bool *),
   m_threads.push_back
     (std::make_unique<output_rtt> (m_period_ns, output_cb,
 				   m_layers.back ()->m_buffer_wr));
-
   m_initialised = true;
 }
 
@@ -105,6 +104,47 @@ network::run ()
     }
 
   return 0;
+}
+
+std::string
+network::str_logical_descr ()
+{
+  std::string temp = "";
+
+  auto it = m_layers.begin ();
+  if (it != m_layers.end ())
+    {
+      temp += (*it)->str_descr (0);
+      it++;
+      while (it != m_layers.end ())
+	{
+	  temp += "\n" + (*it)->str_descr (1);
+	  it++;
+	}
+    }
+
+  return std::format ("(network [{}])", temp);
+}
+
+std::string
+network::str_schematic_descr ()
+{
+  assert (m_initialised);
+  std::string temp = "";
+
+  auto it = m_threads.begin ();
+  if (it != m_threads.end ())
+    {
+      temp += (*it)->str_descr (0);
+      it++;
+      while (it != m_threads.end ())
+	{
+	  temp += "\n" + (*it)->str_descr (1);
+	  it++;
+	}
+    }
+
+  return std::format ("(network [{}])", temp);
 }
 
 void

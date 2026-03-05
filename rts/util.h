@@ -19,10 +19,13 @@
 #define debug_msg(fmt, ...)			 \
   std::cerr << std::format ("{}:{}:{} (): " fmt, \
     __FILE__, __LINE__, __func__, ##__VA_ARGS__)
+#define debug_dump(fmt, ...)			\
+  std::cerr << std::format (fmt, __VA_ARGS__)
 #define debug_perror(msg)			\
   perror (msg)
 #else
 #define debug_msg(fmt, ...)
+#define debug_dump(fmt, ...)
 #define debug_perror(msg)
 #endif
 

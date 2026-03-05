@@ -9,15 +9,11 @@
 
 class layer
 {
+  static uint32_t m_debug_id_counter;
 public:
   layer (uint32_t num_inputs, uint32_t num_outputs, uint32_t batch_size,
-	 uint64_t batch_cost_ns, std::string debug_name)
-    : m_num_inputs (num_inputs), m_num_outputs (num_outputs),
-      m_batch_size (batch_size), m_batch_cost_ns (batch_cost_ns),
-      m_debug_name (debug_name)
-  {
-    assert (num_outputs % batch_size == 0);
-  }
+	 uint64_t batch_cost_ns, std::string debug_type);
+
   virtual ~layer () = default;
 
   /* Simulate one timestep for a subbatch of this layer.  */
@@ -28,38 +24,55 @@ public:
      profiling each layer at their own worst case input.  */
   virtual uint64_t time_batch_worstcase_ns () = 0;
 
-  uint32_t input_size ()  const
+  std::string
+  str_descr (uint32_t level=0) const;
+
+  const std::string&
+  debug_type () const
+  {
+    return m_debug_type;
+  }
+
+  uint32_t
+  debug_id () const
+  {
+    return m_debug_id;
+  }
+
+  uint32_t
+  input_size ()  const
   {
     return m_num_inputs;
   }
 
-  uint32_t output_size () const
+  uint32_t
+  output_size () const
   {
     return m_num_outputs;
   }
   /* A profile based estimate of the cost of running TIMESTEP across an
      entire batch, or COST_UNDEF if we lack this information.  */
-  uint64_t batch_cost () const
+  uint64_t
+  batch_cost () const
   {
     return m_batch_cost_ns;
   }
 
-  uint32_t batch_size () const
+  uint32_t
+  batch_size () const
   {
     return m_batch_size;
   }
 
-  uint32_t total_batches () const
+  uint32_t
+  total_batches () const
   {
     return m_num_outputs / m_batch_size;
   }
 
   /* Simulate one timestep of the entire layer.  */
   std::vector<uint32_t>
-  timestep (const std::vector<uint32_t> &spikes_in)
-  {
-    return timestep_batched (spikes_in, 0, m_num_outputs);
-  }
+  timestep (const std::vector<uint32_t> &spikes_in);
 
   /* Simulate one timestep using input spikes read from M_BUFFER_RD, and write
      any output spikes to M_BUFFER_WR.
@@ -68,35 +81,19 @@ public:
      operations.  We ought to reserve this space ahead of time to avoid dynamic
      allocation within the RT critical path.  */
   void
-  run (uint32_t begin, uint32_t end)
-  {
-    write (timestep_batched (read (), begin, end));
-  }
+  run (uint32_t begin, uint32_t end);
 
 private:
   friend class network;
 
   void
-  profile_batch ()
-  {
-    m_batch_cost_ns = time_batch_worstcase_ns ();
-    debug_msg ("\nProfiler information\n\nbatch size: \
-{}\ncost: {} (ns)\n", m_batch_size, m_batch_cost_ns);
-  }
+  profile_batch ();
 
   std::vector<uint32_t>
-  read ()
-  {
-    assert (m_buffer_rd != nullptr);
-    return m_buffer_rd->read ();
-  }
+  read ();
 
   void
-  write (const std::vector<uint32_t> &spikes)
-  {
-    assert (m_buffer_wr != nullptr);
-    m_buffer_wr->write (spikes);
-  }
+  write (const std::vector<uint32_t> &spikes);
 
   /* Lifetimes managed by the network.  */
   spikebuffer *m_buffer_rd = nullptr;
@@ -110,7 +107,8 @@ protected:
   uint32_t m_batch_size;
   uint64_t m_batch_cost_ns;
 
-  std::string m_debug_name;
+  std::string m_debug_type;
+  uint32_t m_debug_id;
 };
 
 #endif // LAYER_H_

@@ -8,12 +8,17 @@
 /* pthread_t wrapper.  */
 class rt_thread
 {
+  static uint32_t m_debug_id_counter;
 public:
   rt_thread (uint64_t period_ns, int priority=80);
   virtual ~rt_thread () = default;
 
   /* RT cyclic task implementation.  */
   virtual void run () = 0;
+
+  /* debug printing.  */
+  virtual std::string str_descr (uint32_t level=0) = 0;
+
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
   int
@@ -79,8 +84,10 @@ private:
   /* pthread API info.  */
   pthread_t m_id;
   int m_priority;
-
+protected:
+  uint32_t m_debug_id;
 #ifdef EN_PROFILE_NETWORK
+private:
   uint64_t m_max_latency_ns = 0;
   uint64_t m_min_latency_ns = UINT64_MAX;
   uint64_t m_total_latency_ns = 0;
@@ -98,10 +105,10 @@ struct sublayer
   layer *l;
   uint32_t begin;
   uint32_t end;
+  sublayer (layer *l, uint32_t begin, uint32_t end);
 
-  sublayer (layer *l, uint32_t begin, uint32_t end)
-    : l (l), begin (begin), end (end)
-  {}
+  /* debug printing.  */
+  std::string str_descr (uint32_t level=0);
 };
 
 /* A thread which computes part of the network (see 'sublayer').  */
@@ -113,6 +120,8 @@ public:
   void
   run ();
 
+  /* debug printing.  */
+  std::string str_descr (uint32_t level=0);
 private:
   /* Workload.  */
   std::vector<sublayer> m_sublayers;
@@ -131,6 +140,8 @@ public:
   void
   run ();
 
+  /* debug printing.  */
+  std::string str_descr (uint32_t level=0);
 private:
   /* Written to by us only, read by threads running the first layer.  */
   spikebuffer *m_buffer = nullptr;
@@ -148,6 +159,8 @@ public:
   void
   run ();
 
+  /* debug printing.  */
+  std::string str_descr (uint32_t level=0);
 private:
   /* Written to by threads running the last layer, read by us only.  */
   spikebuffer *m_buffer = nullptr;

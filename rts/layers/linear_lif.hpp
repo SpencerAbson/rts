@@ -7,7 +7,6 @@
 template <typename T>
 class linear_lif : public layer
 {
-  static uint32_t m_debug_idx;
 public:
   linear_lif (tensor<T> weights, std::vector<T> bias, uint32_t batch_size,
 	      T beta=(T)0.8, T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF);

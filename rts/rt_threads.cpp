@@ -3,9 +3,14 @@
 #include "util.h"
 #include "rt_threads.hpp"
 
+uint32_t rt_thread::m_debug_id_counter = 0;
+
 rt_thread::rt_thread (uint64_t period_ns, int priority)
-  : m_period_ns (period_ns), m_priority (priority)
-{}
+  : m_period_ns (period_ns), m_priority (priority),
+    m_debug_id (m_debug_id_counter)
+{
+  m_debug_id_counter++;
+}
 
 int
 rt_thread::start (pthread_barrier_t *barrier)
@@ -110,6 +115,21 @@ rt_thread::complete_period ()
 }
 
 
+/* sublayer impl.  */
+sublayer::sublayer (layer *l, uint32_t begin, uint32_t end)
+  : l (l), begin (begin), end (end)
+{}
+
+std::string
+sublayer::str_descr (uint32_t level)
+{
+  return std::format ("{}(sublayer:{} {} (range {} {}))",
+		      std::string (level, '\t'), l->debug_type (),
+		      l->debug_id (), begin, end);
+}
+
+
+/* network_rtt impl.  */
 network_rtt::network_rtt (uint64_t period_ns, std::vector<sublayer> slayers,
 			  int priority)
   : rt_thread (period_ns, priority), m_sublayers (slayers)
@@ -127,7 +147,29 @@ network_rtt::run ()
     }
 }
 
+std::string
+network_rtt::str_descr (uint32_t level)
+{
+  std::string temp = "";
 
+  auto it = m_sublayers.begin ();
+  if (it != m_sublayers.end ())
+    {
+      temp += it->str_descr (0);
+      it++;
+      while (it != m_sublayers.end ())
+	{
+	  temp += "\n" + it->str_descr (level + 1);
+	  it++;
+	}
+    }
+
+  return std::format ("{}(thread:NET {} [{}])", std::string (level, '\t'),
+		      m_debug_id, temp);
+}
+
+
+/* input_rtt impl.  */
 input_rtt::input_rtt (uint64_t period_ns, std::vector<uint32_t> (*cb) (bool *),
 		      spikebuffer *buff, int priority)
   : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
@@ -147,7 +189,14 @@ input_rtt::run ()
   m_alive.store (false, std::memory_order_relaxed);
 }
 
+std::string
+input_rtt::str_descr (uint32_t level)
+{
+  return std::format ("{}(thread:INP {} [])", std::string (level, '\t'),
+		      m_debug_id);
+}
 
+/* output_rtt impl.  */
 output_rtt::output_rtt (uint64_t period_ns,
 			void (*cb) (const std::vector<uint32_t> &),
 			spikebuffer *buff, int priority)
@@ -162,4 +211,11 @@ output_rtt::run ()
       m_cb (m_buffer->read ());
       complete_period ();
     }
+}
+
+std::string
+output_rtt::str_descr (uint32_t level)
+{
+  return std::format ("{}(thread:OUP {} [])", std::string (level, '\t'),
+		      m_debug_id);
 }

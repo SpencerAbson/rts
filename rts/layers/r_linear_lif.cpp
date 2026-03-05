@@ -7,14 +7,11 @@
 #include "r_linear_lif.hpp"
 
 template<typename T>
-uint32_t r_linear_lif<T>::m_debug_idx = 0;
-
-template<typename T>
 r_linear_lif<T>::r_linear_lif (tensor<T> weights, std::vector<T> bias,
 			       std::vector<T> w_rec, uint32_t batch_size,
 			       T beta, T v_thresh, uint64_t batch_cost)
   : layer (weights.shape[0], weights.shape[1], batch_size, batch_cost,
-	   "r_linear_lif_" + std::to_string (m_debug_idx)),
+	   "R_LLIF"),
     m_weights (weights),
     m_bias (bias),
     m_beta (beta),
@@ -26,7 +23,6 @@ r_linear_lif<T>::r_linear_lif (tensor<T> weights, std::vector<T> bias,
 
   assert (weights.shape.size () == 2 && weights.shape[1] == bias.size ());
   assert (w_rec.size () == weights.shape[1]);
-  m_debug_idx++;
 }
 
 template<typename T>

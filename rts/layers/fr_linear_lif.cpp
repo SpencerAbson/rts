@@ -5,13 +5,11 @@
 #include "../util.h"
 #include "fr_linear_lif.hpp"
 
-uint32_t fr_linear_lif::m_debug_idx = 0;
-
 fr_linear_lif::fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 			      tensor<float> weights_rec, float beta,
 			      float v_thresh, uint64_t cost)
   : layer (weights_in.shape[0], weights_in.shape[1], weights_in.shape[1], cost,
-	   "fr_linear_lif_" + std::to_string (m_debug_idx)),
+	   "FR_LLIF"),
     m_weights_in (weights_in),
     m_bias (bias),
     m_weights_rec (weights_rec),
@@ -25,7 +23,6 @@ fr_linear_lif::fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 	  && weights_rec.shape[0] == weights_rec.shape[1]);
 
   assert (weights_rec.shape[0] == weights_in.shape[1]);
-  m_debug_idx++;
 }
 
 std::vector<uint32_t>

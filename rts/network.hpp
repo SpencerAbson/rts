@@ -20,6 +20,13 @@ public:
   int
   run ();
 
+  /* The logical (layered) view of the network.  */
+  std::string
+  str_logical_descr ();
+  /* The schematic (thread-based) view of the initalised network.  */
+  std::string
+  str_schematic_descr ();
+
 private:
   /* Kill all spawned threads.  */
   void

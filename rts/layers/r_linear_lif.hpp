@@ -9,7 +9,6 @@
 template <typename T>
 class r_linear_lif : public layer
 {
-  static uint32_t m_debug_idx;
 public:
   r_linear_lif (tensor<T> weights, std::vector<T> bias, std::vector<T> w_rec,
 		uint32_t batch_size, T beta=(T)0.8, T v_thresh=(T)1.0,
