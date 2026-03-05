@@ -15,7 +15,7 @@ rt_thread::start (pthread_barrier_t *barrier)
   if (ret)
     {
       debug_perror ("pthread_attr_init");
-      debug_printf ("Failed to initialise pthread attrs.\n");
+      debug_msg ("Failed to initialise pthread attrs.\n");
       return ret;
     }
 
@@ -24,7 +24,7 @@ rt_thread::start (pthread_barrier_t *barrier)
   if (ret)
     {
       debug_perror ("pthread_attr_setschedpolicy");
-      debug_printf ("Failed to set pthread scheduler policy.\n");
+      debug_msg ("Failed to set pthread scheduler policy.\n");
       return ret;
     }
 
@@ -35,7 +35,7 @@ rt_thread::start (pthread_barrier_t *barrier)
   if (ret)
     {
       debug_perror ("pthread_attr_setschedparam");
-      debug_printf ("Failed to set pthread scheduler priority.\n");
+      debug_msg ("Failed to set pthread scheduler priority.\n");
       return ret;
     }
 
@@ -45,7 +45,7 @@ rt_thread::start (pthread_barrier_t *barrier)
   if (ret)
     {
       debug_perror ("pthread_attr_setinheritsched");
-      debug_printf ("Failed to set pthread scheduler attributes.\n");
+      debug_msg ("Failed to set pthread scheduler attributes.\n");
       return ret;
     }
 
@@ -63,7 +63,7 @@ rt_thread::join ()
   if (ret)
     {
       debug_perror ("pthread_join");
-      debug_printf ("Failed to join pthread.\n");
+      debug_msg ("Failed to join pthread.\n");
     }
 
   return ret;
@@ -79,7 +79,7 @@ rt_thread::kill ()
       ret = join ();
     }
   if (ret)
-    debug_printf ("Failed to properly kill pthread.\n");
+    debug_msg ("Failed to properly kill pthread.\n");
 
   return ret;
 }

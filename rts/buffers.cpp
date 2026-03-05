@@ -147,12 +147,12 @@ spikebuffer::tock ()
 void
 spikebuffer::handle_timing_violation ()
 {
-  debug_printf ("Timing violation detected, instability condition:\n");
+  debug_msg ("Timing violation detected, instability condition:\n");
   if (m_tick)
-    debug_printf ("readers: %u, read_b: %u, writers %u, written_a: %u\n",
-		  m_readers, m_read_b, m_writers, m_written_a);
+    debug_msg ("readers: {}, read_b: {}, writers {}, written_a: {}\n",
+	       m_readers, m_read_b, m_writers, m_written_a);
   else
-    debug_printf ("readers: %u, read_a: %u, writers %u, written_b: %u\n",
-		  m_readers, m_read_a, m_writers, m_written_b);
+    debug_msg ("readers: {}, read_a: {}, writers {}, written_b: {}\n",
+	       m_readers, m_read_a, m_writers, m_written_b);
   /* What now?  Stabilise?  */
 }

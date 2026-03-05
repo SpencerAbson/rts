@@ -78,7 +78,7 @@ network::run ()
   if (ret)
     {
       debug_perror ("pthread_barrier_init");
-      debug_printf ("Failed to create synchonisation barrier.\n");
+      debug_msg ("Failed to create synchonisation barrier.\n");
     }
 
   /* Create and run all threads.  */
@@ -101,7 +101,7 @@ network::run ()
   if (ret)
     {
       debug_perror ("pthread_barrier_destroy");
-      debug_printf ("Failed to destroy synchonisation barrier.\n");
+      debug_msg ("Failed to destroy synchonisation barrier.\n");
     }
 
   return 0;
