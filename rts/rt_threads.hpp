@@ -47,7 +47,7 @@ public:
   /* Sleep until we reach time T'=T+period.  TODO: warn if current time
      is > T'.  */
   void
-  wait_rest_of_period ();
+  complete_period ();
 
   /* Local timer.  */
   timespec m_timer;
@@ -58,10 +58,20 @@ public:
 
   /* The compiler deletes the default CC when the class contains an atomic.  */
   rt_thread (const rt_thread& other)
-    : m_timer (other.m_timer), m_barrier (other.m_barrier),
-      m_alive (other.m_alive.load ()), m_period_ns (other.m_period_ns),
-      m_id (other.m_id), m_priority (other.m_priority)
-  {}
+  {
+    m_timer     = other.m_timer;
+    m_barrier   = other.m_barrier;
+    m_alive     = other.m_alive.load (std::memory_order_seq_cst);
+    m_period_ns = other.m_period_ns;
+    m_id        = other.m_id;
+    m_priority  = other.m_priority;
+#ifdef EN_PROFILE_NETWORK
+    m_max_latency_ns   = other.m_max_latency_ns;
+    m_min_latency_ns   = other.m_min_latency_ns;
+    m_total_latency_ns = other.m_total_latency_ns;
+    m_total_cycles     = other.m_total_cycles;
+#endif
+  }
 
 private:
   /* Copy of network-wide period parameter.  */
@@ -69,6 +79,14 @@ private:
   /* pthread API info.  */
   pthread_t m_id;
   int m_priority;
+
+#ifdef EN_PROFILE_NETWORK
+  uint64_t m_max_latency_ns = 0;
+  uint64_t m_min_latency_ns = UINT64_MAX;
+  uint64_t m_total_latency_ns = 0;
+
+  uint64_t m_total_cycles = 0;
+#endif
 };
 
 

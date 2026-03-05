@@ -85,8 +85,24 @@ rt_thread::kill ()
 }
 
 void
-rt_thread::wait_rest_of_period ()
+rt_thread::complete_period ()
 {
+#ifdef EN_PROFILE_NETWORK
+  timespec end;
+  clock_gettime (CLOCK_MONOTONIC, &end);
+  /* Record latency stats.  */
+  uint64_t latency = (end.tv_sec - m_timer.tv_sec) * 1E9
+    + end.tv_nsec - m_timer.tv_nsec;
+
+  if (latency > m_max_latency_ns)
+    m_max_latency_ns = latency;
+  if (latency < m_min_latency_ns)
+    m_min_latency_ns = latency;
+
+  m_total_latency_ns += latency;
+  m_total_cycles++;
+#endif
+
   m_timer.tv_nsec += m_period_ns;
   handle_timespec_overflow (&m_timer);
 
@@ -107,7 +123,7 @@ network_rtt::run ()
       for (sublayer &slayer : m_sublayers)
 	slayer.l->run (slayer.begin, slayer.end);
 
-      wait_rest_of_period ();
+      complete_period ();
     }
 }
 
@@ -124,7 +140,7 @@ input_rtt::run ()
   while (!killed && m_alive.load (std::memory_order_relaxed))
     {
       m_buffer->write (m_cb (&killed));
-      wait_rest_of_period ();
+      complete_period ();
     }
 
   /* Propagate death.  */
@@ -144,6 +160,6 @@ output_rtt::run ()
   while (m_alive.load (std::memory_order_relaxed))
     {
       m_cb (m_buffer->read ());
-      wait_rest_of_period ();
+      complete_period ();
     }
 }
