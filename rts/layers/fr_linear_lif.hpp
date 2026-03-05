@@ -12,6 +12,7 @@
    access to this layer by insisting on M_BATCH_SIZE==M_NUM_OUTPUTS.  */
 class fr_linear_lif : public layer
 {
+  static uint32_t m_debug_idx;
 public:
   fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 		 tensor<float> weights_rec, float beta=0.8f,

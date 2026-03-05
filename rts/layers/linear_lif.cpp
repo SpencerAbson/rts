@@ -5,10 +5,14 @@
 #include "linear_lif.hpp"
 
 template<typename T>
+uint32_t linear_lif<T>::m_debug_idx = 0;
+
+template<typename T>
 linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 			   uint32_t batch_size, T beta, T v_thresh,
 			   uint64_t batch_cost)
-  : layer (weights.shape[0], weights.shape[1], batch_size, batch_cost),
+  : layer (weights.shape[0], weights.shape[1], batch_size, batch_cost,
+	   "linear_lif_" + std::to_string (m_debug_idx)),
     m_weights (weights),
     m_bias (bias),
     m_beta (beta),
@@ -19,6 +23,7 @@ linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 		 "Invalid type construction for linear_lif");
 
   assert (weights.shape.size () == 2 && weights.shape[1] == bias.size ());
+  m_debug_idx++;
 }
 
 template<typename T>

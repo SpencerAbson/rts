@@ -1,21 +1,23 @@
-#include <arm_neon.h>
-#include <algorithm>
 #include <random>
+#include <algorithm>
+#include <arm_neon.h>
 #include "../tensor.hpp"
 #include "../util.h"
 #include "fr_linear_lif.hpp"
 
+uint32_t fr_linear_lif::m_debug_idx = 0;
+
 fr_linear_lif::fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 			      tensor<float> weights_rec, float beta,
 			      float v_thresh, uint64_t cost)
-    : layer (weights_in.shape[0], weights_in.shape[1], weights_in.shape[1],
-	     cost),
-      m_weights_in (weights_in),
-      m_bias (bias),
-      m_weights_rec (weights_rec),
-      m_beta (beta),
-      m_v_thresh (v_thresh),
-      m_v_membrane (weights_in.shape[1])
+  : layer (weights_in.shape[0], weights_in.shape[1], weights_in.shape[1], cost,
+	   "fr_linear_lif_" + std::to_string (m_debug_idx)),
+    m_weights_in (weights_in),
+    m_bias (bias),
+    m_weights_rec (weights_rec),
+    m_beta (beta),
+    m_v_thresh (v_thresh),
+    m_v_membrane (weights_in.shape[1])
 {
   assert (weights_in.shape.size () == 2 && weights_in.shape[1] == bias.size ());
 
@@ -23,6 +25,7 @@ fr_linear_lif::fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 	  && weights_rec.shape[0] == weights_rec.shape[1]);
 
   assert (weights_rec.shape[0] == weights_in.shape[1]);
+  m_debug_idx++;
 }
 
 std::vector<uint32_t>

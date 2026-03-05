@@ -2,6 +2,7 @@
 #define LAYER_H_
 
 #include <memory>
+#include <string>
 #include "../buffers.hpp"
 
 #define COST_UNDEF 0
@@ -10,12 +11,14 @@ class layer
 {
 public:
   layer (uint32_t num_inputs, uint32_t num_outputs, uint32_t batch_size,
-	 uint64_t batch_cost_ns)
+	 uint64_t batch_cost_ns, std::string debug_name)
     : m_num_inputs (num_inputs), m_num_outputs (num_outputs),
-      m_batch_size (batch_size), m_batch_cost_ns (batch_cost_ns)
+      m_batch_size (batch_size), m_batch_cost_ns (batch_cost_ns),
+      m_debug_name (debug_name)
   {
     assert (num_outputs % batch_size == 0);
   }
+  virtual ~layer () = default;
 
   /* Simulate one timestep for a subbatch of this layer.  */
   virtual std::vector<uint32_t> timestep_batched (const std::vector<uint32_t>&,
@@ -70,8 +73,6 @@ public:
     write (timestep_batched (read (), begin, end));
   }
 
-  virtual ~layer () = default;
-
 private:
   friend class network;
 
@@ -108,6 +109,8 @@ protected:
 
   uint32_t m_batch_size;
   uint64_t m_batch_cost_ns;
+
+  std::string m_debug_name;
 };
 
 #endif // LAYER_H_
