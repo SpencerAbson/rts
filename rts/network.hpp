@@ -22,10 +22,10 @@ public:
 
   /* The logical (layered) view of the network.  */
   std::string
-  str_logical_descr ();
+  str_logical_descr (uint32_t level=0) const;
   /* The schematic (thread-based) view of the initalised network.  */
   std::string
-  str_schematic_descr ();
+  str_schematic_descr (uint32_t level=0) const;
 
 private:
   /* Kill all spawned threads.  */

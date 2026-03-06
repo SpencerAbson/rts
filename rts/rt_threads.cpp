@@ -121,7 +121,7 @@ sublayer::sublayer (layer *l, uint32_t begin, uint32_t end)
 {}
 
 std::string
-sublayer::str_descr (uint32_t level)
+sublayer::str_descr (uint32_t level) const
 {
   return std::format ("{}(sublayer:{} {} (range {} {}))",
 		      std::string (level, '\t'), l->debug_type (),
@@ -148,24 +148,15 @@ network_rtt::run ()
 }
 
 std::string
-network_rtt::str_descr (uint32_t level)
+network_rtt::str_descr (uint32_t level) const
 {
   std::string temp = "";
+  for (const sublayer &slayer: m_sublayers)
+    temp += "\n" + slayer.str_descr (level + 1);
 
-  auto it = m_sublayers.begin ();
-  if (it != m_sublayers.end ())
-    {
-      temp += it->str_descr (0);
-      it++;
-      while (it != m_sublayers.end ())
-	{
-	  temp += "\n" + it->str_descr (level + 1);
-	  it++;
-	}
-    }
-
-  return std::format ("{}(thread:NET {} [{}])", std::string (level, '\t'),
-		      m_debug_id, temp);
+  std::string space = std::string (level, '\t');
+  return std::format ("{}(thread:NET {} [{}\n{}])", space, m_debug_id, temp,
+		      space);
 }
 
 
@@ -190,9 +181,9 @@ input_rtt::run ()
 }
 
 std::string
-input_rtt::str_descr (uint32_t level)
+input_rtt::str_descr (uint32_t level) const
 {
-  return std::format ("{}(thread:INP {} [])", std::string (level, '\t'),
+  return std::format ("{}(thread:INP {})", std::string (level, '\t'),
 		      m_debug_id);
 }
 
@@ -214,8 +205,8 @@ output_rtt::run ()
 }
 
 std::string
-output_rtt::str_descr (uint32_t level)
+output_rtt::str_descr (uint32_t level) const
 {
-  return std::format ("{}(thread:OUP {} [])", std::string (level, '\t'),
+  return std::format ("{}(thread:OUP {})", std::string (level, '\t'),
 		      m_debug_id);
 }

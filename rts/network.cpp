@@ -107,44 +107,27 @@ network::run ()
 }
 
 std::string
-network::str_logical_descr ()
+network::str_logical_descr (uint32_t level) const
 {
   std::string temp = "";
+  for (const auto &layer : m_layers)
+    temp += "\n" + layer->str_descr (level + 1);
 
-  auto it = m_layers.begin ();
-  if (it != m_layers.end ())
-    {
-      temp += (*it)->str_descr (0);
-      it++;
-      while (it != m_layers.end ())
-	{
-	  temp += "\n" + (*it)->str_descr (1);
-	  it++;
-	}
-    }
-
-  return std::format ("(network [{}])", temp);
+  std::string space = std::string (level, '\t');
+  return std::format ("{}(network [{}\n{}])", space, temp, space);
 }
 
 std::string
-network::str_schematic_descr ()
+network::str_schematic_descr (uint32_t level) const
 {
   assert (m_initialised);
+
   std::string temp = "";
+  for (const auto &thread : m_threads)
+    temp += "\n" + thread->str_descr (level + 1);
 
-  auto it = m_threads.begin ();
-  if (it != m_threads.end ())
-    {
-      temp += (*it)->str_descr (0);
-      it++;
-      while (it != m_threads.end ())
-	{
-	  temp += "\n" + (*it)->str_descr (1);
-	  it++;
-	}
-    }
-
-  return std::format ("(network [{}])", temp);
+  std::string space = std::string (level, '\t');
+  return std::format ("{}(network [{}\n{}])", space, temp, space);
 }
 
 void

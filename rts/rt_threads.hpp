@@ -17,7 +17,7 @@ public:
   virtual void run () = 0;
 
   /* debug printing.  */
-  virtual std::string str_descr (uint32_t level=0) = 0;
+  virtual std::string str_descr (uint32_t level=0) const = 0;
 
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
@@ -108,7 +108,7 @@ struct sublayer
   sublayer (layer *l, uint32_t begin, uint32_t end);
 
   /* debug printing.  */
-  std::string str_descr (uint32_t level=0);
+  std::string str_descr (uint32_t level=0) const;
 };
 
 /* A thread which computes part of the network (see 'sublayer').  */
@@ -121,7 +121,7 @@ public:
   run ();
 
   /* debug printing.  */
-  std::string str_descr (uint32_t level=0);
+  std::string str_descr (uint32_t level=0) const;
 private:
   /* Workload.  */
   std::vector<sublayer> m_sublayers;
@@ -141,7 +141,7 @@ public:
   run ();
 
   /* debug printing.  */
-  std::string str_descr (uint32_t level=0);
+  std::string str_descr (uint32_t level=0) const;
 private:
   /* Written to by us only, read by threads running the first layer.  */
   spikebuffer *m_buffer = nullptr;
@@ -160,7 +160,7 @@ public:
   run ();
 
   /* debug printing.  */
-  std::string str_descr (uint32_t level=0);
+  std::string str_descr (uint32_t level=0) const;
 private:
   /* Written to by threads running the last layer, read by us only.  */
   spikebuffer *m_buffer = nullptr;
