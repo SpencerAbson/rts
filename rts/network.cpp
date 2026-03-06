@@ -1,4 +1,5 @@
 #include <memory>
+#include <sys/mman.h>
 #include "util.h"
 #include "buffers.hpp"
 #include "rt_threads.hpp"
@@ -73,12 +74,22 @@ network::run ()
 
   int ret;
   pthread_barrier_t barrier;
+  /* Lock memory for the entire process.  */
+  ret = mlockall (MCL_CURRENT | MCL_FUTURE);
+  if (ret)
+    {
+      debug_perror ("mlockall");
+      debug_msg ("Failed to lock memory.\n");
+      return ret;
+    }
+
   /* We'll use a barrier to synchronise the start time of each thread.  */
   ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
   if (ret)
     {
       debug_perror ("pthread_barrier_init");
       debug_msg ("Failed to create synchonisation barrier.\n");
+      return ret;
     }
 
   /* Create and run all threads.  */
