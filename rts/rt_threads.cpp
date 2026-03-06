@@ -114,6 +114,20 @@ rt_thread::complete_period ()
   clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
 }
 
+std::string
+rt_thread::str_perf_metrics () const
+{
+  assert (!m_alive.load (std::memory_order_relaxed));
+  std::string stats = "";
+#ifdef EN_PROFILE_NETWORK
+  stats += std::format ("Thead ID: {}\n", m_debug_id);
+  stats += std::format ("maximum latency: {} ns\n", m_max_latency_ns);
+  stats += std::format ("minimum latency: {} ns\n", m_min_latency_ns);
+  stats += std::format ("average latency: {} ns\n", m_total_latency_ns
+			/ m_total_cycles);
+#endif
+  return stats;
+}
 
 /* sublayer impl.  */
 sublayer::sublayer (layer *l, uint32_t begin, uint32_t end)

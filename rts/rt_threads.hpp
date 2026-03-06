@@ -14,10 +14,12 @@ public:
   virtual ~rt_thread () = default;
 
   /* RT cyclic task implementation.  */
-  virtual void run () = 0;
+  virtual void
+  run () = 0;
 
   /* debug printing.  */
-  virtual std::string str_descr (uint32_t level=0) const = 0;
+  virtual std::string
+  str_descr (uint32_t level=0) const = 0;
 
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
@@ -53,6 +55,10 @@ public:
      is > T'.  */
   void
   complete_period ();
+
+  /* Stringify the stats collected under EN_PROFILE_NETWORK.  */
+  std::string
+  str_perf_metrics () const;
 
   /* Local timer.  */
   timespec m_timer;

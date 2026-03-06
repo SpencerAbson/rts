@@ -61,6 +61,7 @@ network::initialise (std::vector<uint32_t> (*input_cb) (bool *),
   m_threads.push_back
     (std::make_unique<output_rtt> (m_period_ns, output_cb,
 				   m_layers.back ()->m_buffer_wr));
+
   m_initialised = true;
 }
 
@@ -102,6 +103,17 @@ network::run ()
       debug_perror ("pthread_barrier_destroy");
       debug_msg ("Failed to destroy synchonisation barrier.\n");
     }
+
+#ifdef EN_PROFILE_NETWORK
+  std::string stats = "";
+  for (const auto &thread: m_threads)
+    stats += thread->str_perf_metrics ();
+
+  debug_dump ("{}\n", ";; Schematic");
+  debug_dump ("{}\n", str_schematic_descr ());
+  debug_dump ("{}\n", ";; Statistics");
+  debug_dump ("{}", stats);
+#endif
 
   return 0;
 }
