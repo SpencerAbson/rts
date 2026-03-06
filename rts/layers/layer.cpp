@@ -37,8 +37,6 @@ void
 layer::profile_batch ()
 {
   m_batch_cost_ns = time_batch_worstcase_ns ();
-  debug_msg ("\nProfiler information\n\nbatch size: \
-{}\ncost: {} (ns)\n", m_batch_size, m_batch_cost_ns);
 }
 
 std::vector<uint32_t>
