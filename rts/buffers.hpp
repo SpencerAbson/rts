@@ -9,8 +9,8 @@
    required to detect meaningful timing violations.  */
 class spikebuffer
 {
+  static uint32_t m_debug_id_counter;
 public:
-
   spikebuffer (uint32_t writers, uint32_t readers, uint64_t sleep_ns=5000);
   spikebuffer (uint64_t sleep_ns=5000);
 
@@ -51,6 +51,8 @@ private:
   bool m_tick = false;
   timespec m_sleep;
   std::atomic<bool> m_lock {false};
+
+  uint32_t m_debug_id;
 };
 
 #endif // BUFFERS_H_

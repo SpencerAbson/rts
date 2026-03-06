@@ -1,19 +1,26 @@
 #include "util.h"
 #include "buffers.hpp"
 
+uint32_t spikebuffer::m_debug_id_counter = 0;
+
 spikebuffer::spikebuffer (uint32_t writers, uint32_t readers, uint64_t sleep_ns)
-  : m_writers (writers), m_readers (readers)
+  : m_writers (writers), m_readers (readers), m_debug_id (m_debug_id_counter)
 {
   m_sleep.tv_sec  = 0;
   m_sleep.tv_nsec = sleep_ns;
   handle_timespec_overflow (&m_sleep);
+
+  m_debug_id_counter++;
 }
 
 spikebuffer::spikebuffer (uint64_t sleep_ns)
+  : m_debug_id (m_debug_id_counter)
 {
   m_sleep.tv_sec  = 0;
   m_sleep.tv_nsec = sleep_ns;
   handle_timespec_overflow (&m_sleep);
+
+  m_debug_id_counter++;
 }
 
 void
