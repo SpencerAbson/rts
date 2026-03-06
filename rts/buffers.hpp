@@ -27,6 +27,12 @@ public:
   std::vector<uint32_t>
   read ();
 
+  uint32_t
+  debug_id () const
+  {
+    return m_debug_id;
+  }
+
 private:
   void
   tick ();

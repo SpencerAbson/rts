@@ -40,6 +40,20 @@ public:
   }
 
   uint32_t
+  buffer_rd_debug_id () const
+  {
+    rts_checking_assert (m_buffer_rd != nullptr);
+    return m_buffer_rd->debug_id ();
+  }
+
+  uint32_t
+  buffer_wr_debug_id () const
+  {
+    rts_checking_assert (m_buffer_wr != nullptr);
+    return m_buffer_wr->debug_id ();
+  }
+
+  uint32_t
   input_size ()  const
   {
     return m_num_inputs;

@@ -123,9 +123,14 @@ sublayer::sublayer (layer *l, uint32_t begin, uint32_t end)
 std::string
 sublayer::str_descr (uint32_t level) const
 {
-  return std::format ("{}(sublayer:{} {} (range {} {}))",
-		      std::string (level, '\t'), l->debug_type (),
-		      l->debug_id (), begin, end);
+  std::string type = l->debug_type ();
+  uint32_t buff_rd = l->buffer_rd_debug_id ();
+  uint32_t buff_wr = l->buffer_wr_debug_id ();
+
+  std::string space = std::string (level, '\t');
+  return std::format ("{}(sublayer:{} {} (range {} {})\n{}(buff:RD {})"
+		      " (buff:WR {}))", space, type, l->debug_id (),
+		      begin, end, space + '\t', buff_rd, buff_wr);
 }
 
 
@@ -183,8 +188,9 @@ input_rtt::run ()
 std::string
 input_rtt::str_descr (uint32_t level) const
 {
-  return std::format ("{}(thread:INP {})", std::string (level, '\t'),
-		      m_debug_id);
+  return std::format ("{}(thread:INP {} (buff:WR {}))",
+		      std::string (level, '\t'), m_debug_id,
+		      m_buffer->debug_id ());
 }
 
 /* output_rtt impl.  */
@@ -207,6 +213,7 @@ output_rtt::run ()
 std::string
 output_rtt::str_descr (uint32_t level) const
 {
-  return std::format ("{}(thread:OUP {})", std::string (level, '\t'),
-		      m_debug_id);
+  return std::format ("{}(thread:OUP {} (buff:RD {}))",
+		      std::string (level, '\t'), m_debug_id,
+		      m_buffer->debug_id ());
 }
