@@ -1,4 +1,5 @@
 #include <numeric>
+#include <arm_neon.h>
 #include "tensor.hpp"
 
 template<typename T>
@@ -16,7 +17,7 @@ tensor<T>::tensor (std::vector<T> data, std::initializer_list<uint32_t> shape)
 {
   rts_checking_assert (std::reduce (shape.begin (),shape.end (), 1,
 				    std::multiplies ()) == vec.size ());
-    init_stride (0);
+  init_stride (0);
 }
 
 template<typename T>
@@ -52,5 +53,6 @@ tensor<T>::init_stride (uint32_t i)
   return stride_i;
 }
 
-template class tensor<float>;
 template class tensor<uint32_t>;
+template class tensor<float32_t>;
+template class tensor<float16_t>;
