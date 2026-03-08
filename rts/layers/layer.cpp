@@ -34,9 +34,21 @@ layer::run (uint32_t begin, uint32_t end)
 }
 
 void
-layer::profile_batch ()
+layer::profile_worstcase_batch ()
 {
-  m_batch_cost_ns = time_batch_worstcase_ns ();
+  timespec start, end;
+  std::vector<uint32_t> input = worstcase_input ();
+
+  /* Measure the execution time under the heaviest load.   */
+  clock_gettime (CLOCK_MONOTONIC, &start);
+  timestep_batched (input, 0, m_batch_size);
+  clock_gettime (CLOCK_MONOTONIC, &end);
+
+  m_batch_cost_ns = (end.tv_sec - start.tv_sec) * 1E9
+    + end.tv_nsec - start.tv_nsec;
+
+  /* Reset state.  */
+  reset ();
 }
 
 std::vector<uint32_t>

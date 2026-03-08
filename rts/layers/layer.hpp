@@ -9,6 +9,7 @@
 
 class layer
 {
+  friend class network;
   static uint32_t m_debug_id_counter;
 public:
   layer (uint32_t num_inputs, uint32_t num_outputs, uint32_t batch_size,
@@ -22,9 +23,10 @@ public:
 		    uint32_t, uint32_t) = 0;
   /* Many factors influence performance at runtime.  But in the absence of user-
      provided profile information (COST_UNDEF), a rough estimate can be made by
-     profiling each layer at their own worst case input.  */
-  virtual uint64_t
-  time_batch_worstcase_ns () = 0;
+     profiling each layer at their own worst case input (see
+     profile_worstcase_batch).  */
+  virtual std::vector<uint32_t>
+  worstcase_input () = 0;
 
   std::string
   str_descr (uint32_t level=0) const;
@@ -103,11 +105,6 @@ public:
   run (uint32_t begin, uint32_t end);
 
 private:
-  friend class network;
-
-  void
-  profile_batch ();
-
   std::vector<uint32_t>
   read ();
 
@@ -119,6 +116,11 @@ private:
   spikebuffer *m_buffer_wr = nullptr;
 
 protected:
+  /* An estimate of the worst-case latency.  Virtual as some layers (recurrent)
+     may have dynamics which affect their latency other than just the input.  */
+  virtual void
+  profile_worstcase_batch ();
+
   /* Generic layer info.  */
   uint32_t m_num_inputs;
   uint32_t m_num_outputs;

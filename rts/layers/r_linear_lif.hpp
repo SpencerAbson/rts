@@ -18,11 +18,11 @@ public:
   timestep_batched (const std::vector<uint32_t> &spikes_in,
 		    uint32_t batch_begin, uint32_t batch_end);
 
+  std::vector<uint32_t>
+  worstcase_input ();
+
   void
   reset ();
-
-  uint64_t
-  time_batch_worstcase_ns ();
 
 private:
   /* Linear parameters.  */

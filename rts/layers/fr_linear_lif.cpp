@@ -117,6 +117,24 @@ fr_linear_lif::timestep_batched (const std::vector<uint32_t> &spikes_in,
   return m_spike_out;
 }
 
+std::vector<uint32_t>
+fr_linear_lif::worstcase_input ()
+{
+  /* Worst case here is when SPIKES_IN contains all of
+     0...(M_NUM_INPUTS-1).  */
+  std::vector<uint32_t> spike_in;
+  for (uint32_t i = 0; i < m_num_inputs; i++)
+    spike_in.push_back (i);
+
+  /* Shuffle this to (hopefully) avoid an optimistically linear
+     access pattern.  */
+  std::random_device rd;
+  std::mt19937 g (rd ());
+  std::shuffle (spike_in.begin (), spike_in.end (), g);
+
+  return spike_in;
+}
+
 void
 fr_linear_lif::reset ()
 {
@@ -126,35 +144,24 @@ fr_linear_lif::reset ()
   m_spike_out.clear ();
 }
 
-uint64_t
-fr_linear_lif::time_batch_worstcase_ns ()
+void
+fr_linear_lif::profile_worstcase_batch ()
 {
-  /* Save the state of any variable dynamics.  */
-  std::vector<float> membrane_init = m_v_membrane;
-  std::vector<uint32_t> spikes_out_init = m_spike_out;
-
-  /* Worst case here is when SPIKES_IN contains all of
-     0...(M_NUM_INPUTS-1), and M_SPIKES_OUT (reccurent spikes)
-     initially contains all of 0...(M_NUM_OUTPUTS-1).  */
-  std::vector<uint32_t> spike_in;
-  for (uint32_t i = 0; i < m_num_inputs; i++)
-    spike_in.push_back (i);
-
-  /* Shuffle this to (hopefully) avoid an optimistically linear
-     access pattern.  Note that we'll leave M_SPIKE_OUT untouched.  */
-  std::random_device rd;
-  std::mt19937 g (rd ());
-  std::shuffle (spike_in.begin (), spike_in.end (), g);
-
   timespec start, end;
+  std::vector<uint32_t> input = worstcase_input ();
+
+  /* We must also consider recurrent spikes here.  */
+  for (uint32_t i = 0; i < m_num_outputs; i++)
+    m_spike_out.push_back (i);
+
+  /* Measure the execution time under the heaviest load.   */
   clock_gettime (CLOCK_MONOTONIC, &start);
-  timestep_batched (spike_in, 0, m_batch_size);
+  timestep_batched (input, 0, m_batch_size);
   clock_gettime (CLOCK_MONOTONIC, &end);
 
-  /* Restore state.  */
-  m_v_membrane = membrane_init;
-  m_spike_out = spikes_out_init;
-
-  return (end.tv_sec - start.tv_sec) * 1E9
+  m_batch_cost_ns = (end.tv_sec - start.tv_sec) * 1E9
     + end.tv_nsec - start.tv_nsec;
+
+  /* Reset state.  */
+  reset ();
 }

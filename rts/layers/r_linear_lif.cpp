@@ -157,20 +157,9 @@ r_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 }
 
 template<typename T>
-void
-r_linear_lif<T>::reset ()
+std::vector<uint32_t>
+r_linear_lif<T>::worstcase_input ()
 {
-  /* Reset membrane potentials to zero.  */
-  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
-}
-
-template<typename T>
-uint64_t
-r_linear_lif<T>::time_batch_worstcase_ns ()
-{
-  /* Save the state of any variable dynamics.  */
-  std::vector<T> membrane_init = m_v_membrane;
-
   /* Worst case here is when SPIKES_IN contains all of
      0...(M_NUM_INPUTS-1).  */
   std::vector<uint32_t> spike_in;
@@ -183,16 +172,15 @@ r_linear_lif<T>::time_batch_worstcase_ns ()
   std::mt19937 g (rd ());
   std::shuffle (spike_in.begin (), spike_in.end (), g);
 
-  timespec start, end;
-  clock_gettime (CLOCK_MONOTONIC, &start);
-  timestep_batched (spike_in, 0, m_batch_size);
-  clock_gettime (CLOCK_MONOTONIC, &end);
+  return spike_in;
+}
 
-  /* Restore state.  */
-  m_v_membrane = membrane_init;
-
-  return (end.tv_sec - start.tv_sec) * 1E9
-    + end.tv_nsec - start.tv_nsec;
+template<typename T>
+void
+r_linear_lif<T>::reset ()
+{
+  /* Reset membrane potentials to zero.  */
+  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
 }
 
 template class r_linear_lif<float32_t>;

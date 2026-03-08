@@ -1,3 +1,4 @@
+#include <random>
 #include <arm_neon.h>
 #include <type_traits>
 #include "../tensor.hpp"
@@ -154,36 +155,30 @@ linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 }
 
 template<typename T>
-void
-linear_lif<T>::reset ()
+std::vector<uint32_t>
+linear_lif<T>::worstcase_input ()
 {
-  /* Reset membrane potentials to zero.  */
-  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
-}
-
-template<typename T>
-uint64_t
-linear_lif<T>::time_batch_worstcase_ns ()
-{
-  /* Save the state of any variable dynamics.  */
-  std::vector<T> membrane_init = m_v_membrane;
-
   /* Worst case here is when SPIKES_IN contains all of
      0...(M_NUM_INPUTS-1).  */
   std::vector<uint32_t> spike_in;
   for (uint32_t i = 0; i < m_num_inputs; i++)
     spike_in.push_back (i);
 
-  timespec start, end;
-  clock_gettime (CLOCK_MONOTONIC, &start);
-  timestep_batched (spike_in, 0, m_batch_size);
-  clock_gettime (CLOCK_MONOTONIC, &end);
+  /* Shuffle this to (hopefully) avoid an optimistically linear
+     access pattern.  */
+  std::random_device rd;
+  std::mt19937 g (rd ());
+  std::shuffle (spike_in.begin (), spike_in.end (), g);
 
-  /* Restore state.  */
-  m_v_membrane = membrane_init;
+  return spike_in;
+}
 
-  return (end.tv_sec - start.tv_sec) * 1E9
-    + end.tv_nsec - start.tv_nsec;
+template<typename T>
+void
+linear_lif<T>::reset ()
+{
+  /* Reset membrane potentials to zero.  */
+  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
 }
 
 template class linear_lif<float32_t>;

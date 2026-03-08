@@ -45,7 +45,7 @@ network::initialise (std::vector<uint32_t> (*input_cb) (bool *),
   for (auto &layer : m_layers)
     {
       if (layer->batch_cost () == COST_UNDEF)
-	layer->profile_batch ();
+	layer->profile_worstcase_batch ();
     }
 
   /* Distribute the layers across M_NUM_THREADS partitions.  */
