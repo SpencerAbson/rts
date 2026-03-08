@@ -117,6 +117,15 @@ fr_linear_lif::timestep_batched (const std::vector<uint32_t> &spikes_in,
   return m_spike_out;
 }
 
+void
+fr_linear_lif::reset ()
+{
+  /* Reset membrane potentials to zero.  */
+  std::fill (m_v_membrane.begin (), m_v_membrane.end (), 0);
+  /* Reset spikes out to empty.   */
+  m_spike_out.clear ();
+}
+
 uint64_t
 fr_linear_lif::time_batch_worstcase_ns ()
 {

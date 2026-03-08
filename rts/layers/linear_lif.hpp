@@ -15,11 +15,13 @@ public:
   timestep_batched (const std::vector<uint32_t> &spikes_in,
 		    uint32_t batch_begin, uint32_t batch_end);
 
+  void
+  reset ();
+
   uint64_t
   time_batch_worstcase_ns ();
 
 private:
-
   /* Linear parameters.  */
   tensor<T> m_weights;
   std::vector<T> m_bias;

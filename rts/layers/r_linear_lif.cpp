@@ -157,6 +157,14 @@ r_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 }
 
 template<typename T>
+void
+r_linear_lif<T>::reset ()
+{
+  /* Reset membrane potentials to zero.  */
+  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
+}
+
+template<typename T>
 uint64_t
 r_linear_lif<T>::time_batch_worstcase_ns ()
 {

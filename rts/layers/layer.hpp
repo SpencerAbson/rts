@@ -17,12 +17,14 @@ public:
   virtual ~layer () = default;
 
   /* Simulate one timestep for a subbatch of this layer.  */
-  virtual std::vector<uint32_t> timestep_batched (const std::vector<uint32_t>&,
-						  uint32_t, uint32_t) = 0;
+  virtual std::vector<uint32_t>
+  timestep_batched (const std::vector<uint32_t>&,
+		    uint32_t, uint32_t) = 0;
   /* Many factors influence performance at runtime.  But in the absence of user-
      provided profile information (COST_UNDEF), a rough estimate can be made by
      profiling each layer at their own worst case input.  */
-  virtual uint64_t time_batch_worstcase_ns () = 0;
+  virtual uint64_t
+  time_batch_worstcase_ns () = 0;
 
   std::string
   str_descr (uint32_t level=0) const;
@@ -84,6 +86,9 @@ public:
     return m_num_outputs / m_batch_size;
   }
 
+  /* Reset the state of any variable dynamics.   */
+  virtual void
+  reset () = 0;
   /* Simulate one timestep of the entire layer.  */
   std::vector<uint32_t>
   timestep (const std::vector<uint32_t> &spikes_in);
