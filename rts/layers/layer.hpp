@@ -88,7 +88,7 @@ public:
     return m_num_outputs / m_batch_size;
   }
 
-  /* Reset the state of any variable dynamics.   */
+  /* Reset the state of any variable dynamics.  */
   virtual void
   reset () = 0;
   /* Simulate one timestep of the entire layer.  */

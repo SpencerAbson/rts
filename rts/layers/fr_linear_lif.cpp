@@ -140,7 +140,7 @@ fr_linear_lif::reset ()
 {
   /* Reset membrane potentials to zero.  */
   std::fill (m_v_membrane.begin (), m_v_membrane.end (), 0);
-  /* Reset spikes out to empty.   */
+  /* Reset spikes out to empty.  */
   m_spike_out.clear ();
 }
 
@@ -154,7 +154,7 @@ fr_linear_lif::profile_worstcase_batch ()
   for (uint32_t i = 0; i < m_num_outputs; i++)
     m_spike_out.push_back (i);
 
-  /* Measure the execution time under the heaviest load.   */
+  /* Measure the execution time under the heaviest load.  */
   clock_gettime (CLOCK_MONOTONIC, &start);
   timestep_batched (input, 0, m_batch_size);
   clock_gettime (CLOCK_MONOTONIC, &end);

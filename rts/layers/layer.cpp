@@ -39,7 +39,7 @@ layer::profile_worstcase_batch ()
   timespec start, end;
   std::vector<uint32_t> input = worstcase_input ();
 
-  /* Measure the execution time under the heaviest load.   */
+  /* Measure the execution time under the heaviest load.  */
   clock_gettime (CLOCK_MONOTONIC, &start);
   timestep_batched (input, 0, m_batch_size);
   clock_gettime (CLOCK_MONOTONIC, &end);
