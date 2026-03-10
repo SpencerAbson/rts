@@ -11,8 +11,8 @@ class spikebuffer
 {
   static uint32_t m_debug_id_counter;
 public:
-  spikebuffer (uint32_t writers, uint32_t readers, uint64_t sleep_ns=5000);
-  spikebuffer (uint64_t sleep_ns=5000);
+  spikebuffer (uint32_t writers, uint32_t readers);
+  spikebuffer ();
 
   void
   set_readers (uint32_t readers);
@@ -55,7 +55,6 @@ private:
   uint32_t m_written_b = 0;
 
   bool m_tick = false;
-  timespec m_sleep;
   std::atomic<bool> m_lock {false};
 
   uint32_t m_debug_id;

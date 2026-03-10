@@ -3,23 +3,15 @@
 
 uint32_t spikebuffer::m_debug_id_counter = 0;
 
-spikebuffer::spikebuffer (uint32_t writers, uint32_t readers, uint64_t sleep_ns)
+spikebuffer::spikebuffer (uint32_t writers, uint32_t readers)
   : m_writers (writers), m_readers (readers), m_debug_id (m_debug_id_counter)
 {
-  m_sleep.tv_sec  = 0;
-  m_sleep.tv_nsec = sleep_ns;
-  handle_timespec_overflow (&m_sleep);
-
   m_debug_id_counter++;
 }
 
-spikebuffer::spikebuffer (uint64_t sleep_ns)
+spikebuffer::spikebuffer ()
   : m_debug_id (m_debug_id_counter)
 {
-  m_sleep.tv_sec  = 0;
-  m_sleep.tv_nsec = sleep_ns;
-  handle_timespec_overflow (&m_sleep);
-
   m_debug_id_counter++;
 }
 
@@ -47,9 +39,7 @@ spikebuffer::write (const std::vector<uint32_t> &data_in)
 {
   /* Spin until we acquire the lock.  */
   while (std::atomic_exchange_explicit (&m_lock, true,
-					std::memory_order_acquire))
-    clock_nanosleep (CLOCK_MONOTONIC, 0, &m_sleep, NULL);
-
+					std::memory_order_acquire));
   if (m_tick)
     {
       /* There must have been a timing violation if the current write to
@@ -90,9 +80,7 @@ spikebuffer::read ()
   std::vector<uint32_t> data_out;
   /* Spin until we acquire the lock.  */
   while (std::atomic_exchange_explicit (&m_lock, true,
-					std::memory_order_acquire))
-    clock_nanosleep (CLOCK_MONOTONIC, 0, &m_sleep, NULL);
-
+					std::memory_order_acquire));
   if (m_tick)
     {
       /* There must have been a timing violation if the current read from
