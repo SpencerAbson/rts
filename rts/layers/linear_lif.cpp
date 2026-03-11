@@ -170,7 +170,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 	      /* PRFM instructions are not cheap, so we'd like to minimise our
 		 use of them as much as possible.  We expect the memory system
 		 to preload the 64-byte cache line pointed to by each PRFM
-		 instruction into L3, so we need to use at most one per 64-bytes
+		 instruction into L2, so we need to use at most one per 64-bytes
 		 (16 floats).
 
 		 At the same time, we would like to avoid code like:
@@ -184,7 +184,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 		 instruction  per iteration.  */
 	      for (uint32_t j = batch_begin; j < unroll_max; j+= 16)
 		{
-		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 1);
+		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 2);
 
 		  float32x4_t weights
 		    = vld1q_f32 (&m_weights.vec[offset + j]);
@@ -296,7 +296,7 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 	      /* PRFM instructions are not cheap, so we'd like to minimise our
 		 use of them as much as possible.  We expect the memory system
 		 to preload the 64-byte cache line pointed to by each PRFM
-		 instruction into L3, so we need to use at most one per 64-bytes
+		 instruction into L2, so we need to use at most one per 64-bytes
 		 (32 halfs).
 
 		 At the same time, we would like to avoid code like:
@@ -310,7 +310,7 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 		 instruction  per iteration.  */
 	      for (uint32_t j = batch_begin; j < unroll_max; j+= 32)
 		{
-		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 1);
+		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 2);
 
 		  float16x8_t weights
 		    = vld1q_f16 (&m_weights.vec[offset + j]);
