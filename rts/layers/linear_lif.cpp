@@ -26,132 +26,374 @@ linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 template<typename T>
 std::vector<uint32_t>
 linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
-				 uint32_t batch_begin, uint32_t batch_end)
+				 uint32_t batch_begin)
 {
-  rts_checking_assert (batch_end > batch_begin);
-
+  rts_checking_assert (batch_begin + m_batch_size <= m_num_outputs);
   if constexpr (std::is_same_v<T, float>)
     /* float32_t implementaion.  */
     {
-      /* Limit before epilogue for a VF of 4.  */
-      uint32_t max_neon = batch_begin + ((batch_end - batch_begin) & ~0x03);
-      /* Vectorised constants for dynamics.  */
-      const float32x4_t beta_splat   = vdupq_n_f32 (m_beta);
-      const float32x4_t thresh_splat = vdupq_n_f32 (m_v_thresh);
-
-      /* Handle the neuron's dynamics and linear bias.  */
-      float32x4_t membrane, bias;
-      for (uint32_t i = batch_begin; i < max_neon; i+=4)
-	{
-	  bias     = vld1q_f32 (&m_bias[i]);
-	  membrane = vld1q_f32 (&m_v_membrane[i]);
-
-	  /* Conditionally set a soft reset value (actually float).  */
-	  uint32x4_t reset = vandq_u32 (vcgtq_f32 (membrane, thresh_splat),
-					vreinterpretq_u32_f32 (thresh_splat));
-	    /* Compute bias + (mem * beta) - ?reset.  */
-	  membrane = vfmaq_f32 (bias, membrane, beta_splat);
-	  membrane = vsubq_f32 (membrane, vreinterpretq_f32_u32 (reset));
-
-	  vst1q_f32 (&m_v_membrane[i], membrane);
-	}
-      /* Scalar epilogue.  */
-      for (uint32_t i = max_neon; i < batch_end; i++)
-	{
-	  float update = m_bias[i] + (m_v_membrane[i] * m_beta);
-	  if (m_v_membrane[i] > m_v_thresh)
-	    update -= m_v_thresh;
-
-	  m_v_membrane[i] = update;
-	}
-
-      /* Handle the spiking input.  */
-      for (uint32_t spike : spikes_in)
-	{
-	  rts_checking_assert (spike < m_weights.shape[0]);
-
-	  const uint32_t offset = spike * m_weights.stride[0];
-	  for (uint32_t i = batch_begin; i < max_neon; i+=4)
-	    {
-	      float32x4_t weight_slice
-		= vld1q_f32 (&m_weights.vec[offset + i]);
-
-	      membrane = vld1q_f32 (&m_v_membrane[i]);
-	      membrane = vaddq_f32 (membrane, weight_slice);
-
-	      vst1q_f32 (&m_v_membrane[i], membrane);
-	    }
-	  /* Scalar epilogue.  */
-	  for (uint32_t i = max_neon; i < batch_end; i++)
-	    m_v_membrane[i] += m_weights.vec[offset + i];
-	}
+      f32_neuron_update (batch_begin);
+      f32_spike_prop (spikes_in, batch_begin);
     }
-  else
+  else if constexpr (std::is_same_v<T, float16_t>)
     /* float16_t implementation.  */
     {
-      /* Limit before epilogue for a VF of 8.  */
-      uint32_t max_neon = batch_begin + ((batch_end - batch_begin) & ~0x07);
-      /* Vectorised constants for dynamics.  */
-      const float16x8_t beta_splat   = vdupq_n_f16 (m_beta);
-      const float16x8_t thresh_splat = vdupq_n_f16 (m_v_thresh);
-
-      /* Handle the neuron's dynamics and linear bias.  */
-      float16x8_t membrane, bias;
-      for (uint32_t i = batch_begin; i < max_neon; i+=8)
-	{
-	  bias     = vld1q_f16 (&m_bias[i]);
-	  membrane = vld1q_f16 (&m_v_membrane[i]);
-
-	  /* Conditionally set a soft reset value (actually float).  */
-	  uint16x8_t reset = vandq_u16 (vcgtq_f16 (membrane, thresh_splat),
-					vreinterpretq_u16_f16 (thresh_splat));
-	  /* Compute bias + (mem * beta) - ?reset.  */
-	  membrane = vfmaq_f16 (bias, membrane, beta_splat);
-	  membrane = vsubq_f16 (membrane, vreinterpretq_f16_u16 (reset));
-
-	  vst1q_f16 (&m_v_membrane[i], membrane);
-	}
-      /* Scalar epilogue.  */
-      for (uint32_t i = max_neon; i < batch_end; i++)
-	{
-	  float16_t update = m_bias[i] + (m_v_membrane[i] * m_beta);
-	  if (m_v_membrane[i] > m_v_thresh)
-	    update -= m_v_thresh;
-
-	  m_v_membrane[i] = update;
-	}
-
-      /* Handle the spiking input.  */
-      for (uint32_t spike : spikes_in)
-	{
-	  rts_checking_assert (spike < m_weights.shape[0]);
-
-	  const uint32_t offset = spike * m_weights.stride[0];
-	  for (uint32_t i = batch_begin; i < max_neon; i+=8)
-	    {
-	      float16x8_t weight_slice
-		= vld1q_f16 (&m_weights.vec[offset + i]);
-
-	      membrane = vld1q_f16 (&m_v_membrane[i]);
-	      membrane = vaddq_f16 (membrane, weight_slice);
-
-	      vst1q_f16 (&m_v_membrane[i], membrane);
-	    }
-	  /* Scalar epilogue.  */
-	  for (uint32_t i = max_neon; i < batch_end; i++)
-	    m_v_membrane[i] += m_weights.vec[offset + i];
-	}
+      f16_neuron_update (batch_begin);
+      f16_spike_prop (spikes_in, batch_begin);
     }
+  else
+    rts_unreachable ("Type construction for linear_lif");
 
   std::vector<uint32_t> spike_out;
   /* Push the spiking neurons to SPIKE_OUT.  */
-  for (uint32_t i = batch_begin; i < batch_end; i++)
+  for (uint32_t i = batch_begin; i < batch_begin + m_batch_size; i++)
     {
       if (m_v_membrane[i] > m_v_thresh)
 	  spike_out.push_back (i);
     }
 
   return spike_out;
+}
+
+template<typename T>
+void
+linear_lif<T>::f32_neuron_update (uint32_t batch_begin)
+{
+ if constexpr (std::is_same_v<T, float32_t>)
+   {
+     const uint32_t batch_end = batch_begin + m_batch_size;
+     /* Max iteration at VF of 4.  */
+     const uint32_t vector_max = batch_begin + (m_batch_size & ~0x03);
+     /* Vectorised constants for dynamics.  */
+     const float32x4_t beta_splat   = vdupq_n_f32 (m_beta);
+     const float32x4_t thresh_splat = vdupq_n_f32 (m_v_thresh);
+
+     /* Handle the neuron's dynamics and linear bias.  */
+     float32x4_t membrane, bias;
+     for (uint32_t i = batch_begin; i < vector_max; i+=4)
+       {
+	 bias     = vld1q_f32 (&m_bias[i]);
+	 membrane = vld1q_f32 (&m_v_membrane[i]);
+
+	 /* Conditionally set a soft reset value.  */
+	 uint32x4_t reset = vandq_u32 (vcgtq_f32 (membrane, thresh_splat),
+				       vreinterpretq_u32_f32 (thresh_splat));
+	 /* Compute bias + (mem * beta) - ?reset.  */
+	 membrane = vfmaq_f32 (bias, membrane, beta_splat);
+	 membrane = vsubq_f32 (membrane, vreinterpretq_f32_u32 (reset));
+	 vst1q_f32 (&m_v_membrane[i], membrane);
+       }
+     /* Scalar epilogue.  */
+     for (uint32_t i = vector_max; i < batch_end; i++)
+       {
+	 float update = m_bias[i] + (m_v_membrane[i] * m_beta);
+	 if (m_v_membrane[i] > m_v_thresh)
+	   update -= m_v_thresh;
+
+	 m_v_membrane[i] = update;
+       }
+   }
+ else
+   {
+     rts_unreachable ("Type construction for linear_lif");
+   }
+}
+
+template<typename T>
+void
+linear_lif<T>::f16_neuron_update (uint32_t batch_begin)
+{
+ if constexpr (std::is_same_v<T, float16_t>)
+   {
+     const uint32_t batch_end = batch_begin + m_batch_size;
+     /* Max iteration at VF of 8.  */
+     const uint32_t vector_max = batch_begin + (m_batch_size & ~0x07);
+     /* Vectorised constants for dynamics.  */
+     const float16x8_t beta_splat   = vdupq_n_f16 (m_beta);
+     const float16x8_t thresh_splat = vdupq_n_f16 (m_v_thresh);
+
+     /* Handle the neuron's dynamics and linear bias.  */
+     float16x8_t membrane, bias;
+     for (uint32_t i = batch_begin; i < vector_max; i+=8)
+       {
+	 bias     = vld1q_f16 (&m_bias[i]);
+	 membrane = vld1q_f16 (&m_v_membrane[i]);
+
+	 /* Conditionally set a soft reset value.  */
+	 uint16x8_t reset = vandq_u16 (vcgtq_f16 (membrane, thresh_splat),
+				       vreinterpretq_u16_f16 (thresh_splat));
+	 /* Compute bias + (mem * beta) - ?reset.  */
+	 membrane = vfmaq_f16 (bias, membrane, beta_splat);
+	 membrane = vsubq_f16 (membrane, vreinterpretq_f16_u16 (reset));
+
+	 vst1q_f16 (&m_v_membrane[i], membrane);
+       }
+     /* Scalar epilogue.  */
+     for (uint32_t i = vector_max; i < batch_end; i++)
+       {
+	 float16_t update = m_bias[i] + (m_v_membrane[i] * m_beta);
+	 if (m_v_membrane[i] > m_v_thresh)
+	   update -= m_v_thresh;
+
+	 m_v_membrane[i] = update;
+       }
+   }
+ else
+   {
+     rts_unreachable ("Type construction for linear_lif");
+   }
+}
+
+template<typename T>
+void
+linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
+			       uint32_t batch_begin)
+{
+  if constexpr (std::is_same_v<T, float32_t>)
+    {
+      const uint32_t batch_end = batch_begin + m_batch_size;
+      /* Max unrolled and vectorised iterations.  */
+      const uint32_t unroll_max = batch_begin + (m_batch_size & ~0x0F);
+      const uint32_t vector_max = batch_begin + (m_batch_size & ~0x03);
+
+      if (spikes_in.size () != 0)
+	{
+	  uint32_t stride = m_weights.stride[0];
+	  uint32_t offset;
+	  uint32_t next_offset = spikes_in[0] * stride;
+	  for (uint32_t i = 0; i < spikes_in.size () - 1; i++)
+	    {
+	      offset = next_offset;
+	      /* We'll manually prefetch the next row of weights whilst
+		 working on this one.  */
+	      next_offset = spikes_in[i + 1] * stride;
+	      /* PRFM instructions are not cheap, so we'd like to minimise our
+		 use of them as much as possible.  We expect the memory system
+		 to preload the 64-byte cache line pointed to by each PRFM
+		 instruction into L3, so we need to use at most one per 64-bytes
+		 (16 floats).
+
+		 At the same time, we would like to avoid code like:
+
+		 if ((counter & 0x0F) == 0)
+		   __builtin_prefetch (...)
+
+		 from appearing in the loop, since it would introduce branch
+		 mis-predictions and slow us down.  The easy-route taken here
+		 is to apply an unrolling factor of 16, and emit one PFRM
+		 instruction  per iteration.  */
+	      for (uint32_t j = batch_begin; j < unroll_max; j+= 16)
+		{
+		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 1);
+
+		  float32x4_t weights
+		    = vld1q_f32 (&m_weights.vec[offset + j]);
+		  float32x4_t membranes
+		    = vld1q_f32 (&m_v_membrane[j]);
+		  vst1q_f32 (&m_v_membrane[j],
+			     vaddq_f32 (membranes, weights));
+
+		  weights = vld1q_f32 (&m_weights.vec[offset + j + 4]);
+		  membranes = vld1q_f32 (&m_v_membrane[j + 4]);
+		  vst1q_f32 (&m_v_membrane[j + 4],
+			     vaddq_f32 (membranes, weights));
+
+		  weights = vld1q_f32 (&m_weights.vec[offset + j + 8]);
+		  membranes = vld1q_f32 (&m_v_membrane[j + 8]);
+		  vst1q_f32 (&m_v_membrane[j + 8],
+			     vaddq_f32 (membranes, weights));
+
+		  weights = vld1q_f32 (&m_weights.vec[offset + j + 12]);
+		  membranes = vld1q_f32 (&m_v_membrane[j + 12]);
+		  vst1q_f32 (&m_v_membrane[j + 12],
+			     vaddq_f32 (membranes, weights));
+		}
+	      /* Unroll epilogue.  */
+	      for (uint32_t j = unroll_max; j < vector_max; j+=4)
+		{
+		  float32x4_t weights
+		    = vld1q_f32 (&m_weights.vec[offset + j]);
+		  float32x4_t membranes
+		    = vld1q_f32 (&m_v_membrane[j]);
+
+		  membranes = vaddq_f32 (membranes, weights);
+		  vst1q_f32 (&m_v_membrane[j], membranes);
+		}
+	      /* Vector epilogue.  */
+	      for (uint32_t j = vector_max; j < batch_end; j++)
+		m_v_membrane[j] += m_weights.vec[offset + j];
+	    }
+	  /* The final spike...  */
+	  for (uint32_t j = batch_begin; j < unroll_max; j+= 16)
+	    {
+	      float32x4_t weights
+		= vld1q_f32 (&m_weights.vec[next_offset + j]);
+	      float32x4_t membranes
+		= vld1q_f32 (&m_v_membrane[j]);
+	      vst1q_f32 (&m_v_membrane[j],
+			 vaddq_f32 (membranes, weights));
+
+	      weights = vld1q_f32 (&m_weights.vec[next_offset + j + 4]);
+	      membranes = vld1q_f32 (&m_v_membrane[j + 4]);
+	      vst1q_f32 (&m_v_membrane[j + 4],
+			 vaddq_f32 (membranes, weights));
+
+	      weights = vld1q_f32 (&m_weights.vec[next_offset + j + 8]);
+	      membranes = vld1q_f32 (&m_v_membrane[j + 8]);
+	      vst1q_f32 (&m_v_membrane[j + 8],
+			 vaddq_f32 (membranes, weights));
+
+	      weights = vld1q_f32 (&m_weights.vec[next_offset + j + 12]);
+	      membranes = vld1q_f32 (&m_v_membrane[j + 12]);
+	      vst1q_f32 (&m_v_membrane[j + 12],
+			 vaddq_f32 (membranes, weights));
+	    }
+	  /* Unroll epilogue.  */
+	  for (uint32_t j = unroll_max; j < vector_max; j+=4)
+	    {
+	      float32x4_t weights
+		= vld1q_f32 (&m_weights.vec[next_offset + j]);
+	      float32x4_t membranes
+		= vld1q_f32 (&m_v_membrane[j]);
+
+	      membranes = vaddq_f32 (membranes, weights);
+	      vst1q_f32 (&m_v_membrane[j], membranes);
+	    }
+	  /* Vector epilogue.  */
+	  for (uint32_t j = vector_max; j < batch_end; j++)
+	    m_v_membrane[j] += m_weights.vec[next_offset + j];
+	}
+    }
+  else
+    {
+      rts_unreachable ("Type construction for linear_lif");
+    }
+}
+
+template<typename T>
+void
+linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
+			       uint32_t batch_begin)
+{
+  if constexpr (std::is_same_v<T, float16_t>)
+    {
+      const uint32_t batch_end = batch_begin + m_batch_size;
+      /* Max unrolled and vectorised iterations.  */
+      const uint32_t unroll_max = batch_begin + (m_batch_size & ~0x1F);
+      const uint32_t vector_max = batch_begin + (m_batch_size & ~0x07);
+
+      if (spikes_in.size () != 0)
+	{
+	  uint32_t stride = m_weights.stride[0];
+	  uint32_t offset;
+	  uint32_t next_offset = spikes_in[0] * stride;
+	  for (uint32_t i = 0; i < spikes_in.size () - 1; i++)
+	    {
+	      offset = next_offset;
+	      /* We'll manually prefetch the next row of weights whilst
+		 working on this one.  */
+	      next_offset = spikes_in[i + 1] * stride;
+	      /* PRFM instructions are not cheap, so we'd like to minimise our
+		 use of them as much as possible.  We expect the memory system
+		 to preload the 64-byte cache line pointed to by each PRFM
+		 instruction into L3, so we need to use at most one per 64-bytes
+		 (32 halfs).
+
+		 At the same time, we would like to avoid code like:
+
+		 if ((counter & 0x1F) == 0)
+		   __builtin_prefetch (...)
+
+		 from appearing in the loop, since it would introduce branch
+		 mis-predictions and slow us down.  The easy-route taken here
+		 is to apply an unrolling factor of 32, and emit one PFRM
+		 instruction  per iteration.  */
+	      for (uint32_t j = batch_begin; j < unroll_max; j+= 32)
+		{
+		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 1);
+
+		  float16x8_t weights
+		    = vld1q_f16 (&m_weights.vec[offset + j]);
+		  float16x8_t membranes
+		    = vld1q_f16 (&m_v_membrane[j]);
+		  vst1q_f16 (&m_v_membrane[j],
+			     vaddq_f16 (membranes, weights));
+
+		  weights = vld1q_f16 (&m_weights.vec[offset + j + 8]);
+		  membranes = vld1q_f16 (&m_v_membrane[j + 8]);
+		  vst1q_f16 (&m_v_membrane[j + 8],
+			     vaddq_f16 (membranes, weights));
+
+		  weights = vld1q_f16 (&m_weights.vec[offset + j + 16]);
+		  membranes = vld1q_f16 (&m_v_membrane[j + 16]);
+		  vst1q_f16 (&m_v_membrane[j + 16],
+			     vaddq_f16 (membranes, weights));
+
+		  weights = vld1q_f16 (&m_weights.vec[offset + j + 24]);
+		  membranes = vld1q_f16 (&m_v_membrane[j + 24]);
+		  vst1q_f16 (&m_v_membrane[j + 24],
+			     vaddq_f16 (membranes, weights));
+		}
+	      /* Unroll epilogue.  */
+	      for (uint32_t j = unroll_max; j < vector_max; j+=8)
+		{
+		  float16x8_t weights
+		    = vld1q_f16 (&m_weights.vec[offset + j]);
+		  float16x8_t membranes
+		    = vld1q_f16 (&m_v_membrane[j]);
+
+		  membranes = vaddq_f16 (membranes, weights);
+		  vst1q_f16 (&m_v_membrane[j], membranes);
+		}
+	      /* Vector epilogue.  */
+	      for (uint32_t j = vector_max; j < batch_end; j++)
+		m_v_membrane[j] += m_weights.vec[offset + j];
+	    }
+	  /* The final spike...  */
+	  for (uint32_t j = batch_begin; j < unroll_max; j+= 32)
+	    {
+	      float16x8_t weights
+		= vld1q_f16 (&m_weights.vec[next_offset + j]);
+	      float16x8_t membranes
+		= vld1q_f16 (&m_v_membrane[j]);
+	      vst1q_f16 (&m_v_membrane[j],
+			 vaddq_f16 (membranes, weights));
+
+	      weights = vld1q_f16 (&m_weights.vec[next_offset + j + 8]);
+	      membranes = vld1q_f16 (&m_v_membrane[j + 8]);
+	      vst1q_f16 (&m_v_membrane[j + 8],
+			 vaddq_f16 (membranes, weights));
+
+	      weights = vld1q_f16 (&m_weights.vec[next_offset + j + 16]);
+	      membranes = vld1q_f16 (&m_v_membrane[j + 16]);
+	      vst1q_f16 (&m_v_membrane[j + 16],
+			 vaddq_f16 (membranes, weights));
+
+	      weights = vld1q_f16 (&m_weights.vec[next_offset + j + 24]);
+	      membranes = vld1q_f16 (&m_v_membrane[j + 24]);
+	      vst1q_f16 (&m_v_membrane[j + 24],
+			 vaddq_f16 (membranes, weights));
+	    }
+	  /* Unroll epilogue.  */
+	  for (uint32_t j = unroll_max; j < vector_max; j+=8)
+	    {
+	      float16x8_t weights
+		= vld1q_f16 (&m_weights.vec[next_offset + j]);
+	      float16x8_t membranes
+		= vld1q_f16 (&m_v_membrane[j]);
+
+	      membranes = vaddq_f16 (membranes, weights);
+	      vst1q_f16 (&m_v_membrane[j], membranes);
+	    }
+	  /* Vector epilogue.  */
+	  for (uint32_t j = vector_max; j < batch_end; j++)
+	    m_v_membrane[j] += m_weights.vec[next_offset + j];
+	}
+    }
+  else
+    {
+      rts_unreachable ("Type construction for linear_lif");
+    }
 }
 
 template<typename T>

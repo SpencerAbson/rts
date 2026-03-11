@@ -19,8 +19,7 @@ public:
 
   /* Simulate one timestep for a subbatch of this layer.  */
   virtual std::vector<uint32_t>
-  timestep_batched (const std::vector<uint32_t>&,
-		    uint32_t, uint32_t) = 0;
+  timestep_batched (const std::vector<uint32_t>&, uint32_t) = 0;
   /* Many factors influence performance at runtime.  But in the absence of user-
      provided profile information (COST_UNDEF), a rough estimate can be made by
      profiling each layer at their own worst case input (see
@@ -102,7 +101,7 @@ public:
      operations.  We ought to reserve this space ahead of time to avoid dynamic
      allocation within the RT critical path.  */
   void
-  run (uint32_t begin, uint32_t end);
+  run (uint32_t batch_begin);
 
 private:
   std::vector<uint32_t>

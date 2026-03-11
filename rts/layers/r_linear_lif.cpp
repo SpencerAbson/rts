@@ -28,15 +28,14 @@ r_linear_lif<T>::r_linear_lif (tensor<T> weights, std::vector<T> bias,
 template<typename T>
 std::vector<uint32_t>
 r_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
-				   uint32_t batch_begin, uint32_t batch_end)
+				   uint32_t batch_begin)
 {
-  rts_checking_assert (batch_end > batch_begin);
-
+  const uint32_t batch_end = batch_begin + m_batch_size;
   if constexpr (std::is_same_v<T, float>)
     /* float32_t implementaion.  */
     {
       /* Limit before epilogue for a VF of 4.  */
-      uint32_t max_neon = batch_begin + ((batch_end - batch_begin) & ~0x03);
+      uint32_t max_neon = batch_begin + (m_batch_size & ~0x03);
       /* Vectorised constants for dynamics.  */
       const float32x4_t beta_splat   = vdupq_n_f32 (m_beta);
       const float32x4_t thresh_splat = vdupq_n_f32 (m_v_thresh);
@@ -92,7 +91,7 @@ r_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
     /* float16_t implementation.  */
     {
       /* Limit before epilogue for a VF of 8.  */
-      uint32_t max_neon = batch_begin + ((batch_end - batch_begin) & ~0x07);
+      uint32_t max_neon = batch_begin + (m_batch_size & ~0x07);
       /* Vectorised constants for dynamics.  */
       const float16x8_t beta_splat   = vdupq_n_f16 (m_beta);
       const float16x8_t thresh_splat = vdupq_n_f16 (m_v_thresh);

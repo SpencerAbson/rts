@@ -27,11 +27,11 @@ fr_linear_lif::fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 
 std::vector<uint32_t>
 fr_linear_lif::timestep_batched (const std::vector<uint32_t> &spikes_in,
-				 uint32_t batch_begin, uint32_t batch_end)
+				 uint32_t batch_begin)
 {
-  rts_checking_assert (batch_end > batch_begin);
+  const uint32_t batch_end = batch_begin + m_batch_size;
   /* Limit before epilogue for a VF of 4.  */
-  uint32_t max_neon = batch_begin + ((batch_end - batch_begin) & ~0x03);
+  uint32_t max_neon = batch_begin + (m_batch_size & ~0x03);
   /* Vectorised constants for dynamics.  */
   const float32x4_t beta_splat   = vdupq_n_f32 (m_beta);
   const float32x4_t thresh_splat = vdupq_n_f32 (m_v_thresh);
@@ -156,7 +156,7 @@ fr_linear_lif::profile_worstcase_batch ()
 
   /* Measure the execution time under the heaviest load.  */
   clock_gettime (CLOCK_MONOTONIC, &start);
-  timestep_batched (input, 0, m_batch_size);
+  timestep_batched (input, 0);
   clock_gettime (CLOCK_MONOTONIC, &end);
 
   m_batch_cost_ns = (end.tv_sec - start.tv_sec) * 1E9

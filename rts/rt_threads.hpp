@@ -103,15 +103,14 @@ private:
 };
 
 
-/* The natural interval [BEGIN, END) represents a contigious part of
-   layer L's neurons that we refer to as a 'sublayer'.  It is the job
-   of each network thread to run a set of these.  */
+/* The natural interval [BEGIN, L->BATCH_SIZE ()) represents a contigious
+   part of layer L's neurons that we refer to as a 'sublayer'.  It is the
+   job of each network thread to run a set of these.  */
 struct sublayer
 {
   layer *l;
   uint32_t begin;
-  uint32_t end;
-  sublayer (layer *l, uint32_t begin, uint32_t end);
+  sublayer (layer *l, uint32_t begin);
 
   /* debug printing.  */
   std::string str_descr (uint32_t level=0) const;

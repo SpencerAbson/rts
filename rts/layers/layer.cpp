@@ -24,13 +24,13 @@ layer::str_descr (uint32_t level) const
 std::vector<uint32_t>
 layer::timestep (const std::vector<uint32_t> &spikes_in)
 {
-  return timestep_batched (spikes_in, 0, m_num_outputs);
+  return timestep_batched (spikes_in, 0);
 }
 
 void
-layer::run (uint32_t begin, uint32_t end)
+layer::run (uint32_t begin)
 {
-  write (timestep_batched (read (), begin, end));
+  write (timestep_batched (read (), begin));
 }
 
 void
@@ -41,7 +41,7 @@ layer::profile_worstcase_batch ()
 
   /* Measure the execution time under the heaviest load.  */
   clock_gettime (CLOCK_MONOTONIC, &start);
-  timestep_batched (input, 0, m_batch_size);
+  timestep_batched (input, 0);
   clock_gettime (CLOCK_MONOTONIC, &end);
 
   m_batch_cost_ns = (end.tv_sec - start.tv_sec) * 1E9

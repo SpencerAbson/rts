@@ -7,6 +7,9 @@
 #include <time.h>
 #include <stdio.h>
 
+#define rts_unreachable(msg)			\
+  assert (false && "Unreachable executed: " msg)
+
 #ifdef EN_CHECKING_ASSERT
 #define rts_checking_assert(EXPR)		\
     assert (EXPR)

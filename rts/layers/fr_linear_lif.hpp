@@ -19,7 +19,7 @@ public:
 
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
-		    uint32_t batch_begin, uint32_t batch_end);
+		    uint32_t batch_begin);
 
   std::vector<uint32_t>
   worstcase_input ();
