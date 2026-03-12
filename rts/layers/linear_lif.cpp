@@ -1,4 +1,5 @@
 #include <random>
+#include <string>
 #include <arm_neon.h>
 #include <type_traits>
 #include "../tensor.hpp"
@@ -8,9 +9,8 @@
 template<typename T>
 linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 			   uint32_t batch_size, T beta, T v_thresh,
-			   uint64_t batch_cost)
-  : layer (weights.shape[0], weights.shape[1], batch_size, batch_cost,
-	   "LLIF"),
+			   uint64_t batch_cost, std::string type)
+  : layer (weights.shape[0], weights.shape[1], batch_size, batch_cost, type),
     m_weights (weights),
     m_bias (bias),
     m_beta (beta),

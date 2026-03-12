@@ -1,15 +1,16 @@
 #ifndef LINEAR_LIF_H_
 #define LINEAR_LIF_H_
 
+#include <string>
 #include "layer.hpp"
-
 
 template <typename T>
 class linear_lif : public layer
 {
 public:
   linear_lif (tensor<T> weights, std::vector<T> bias, uint32_t batch_size,
-	      T beta=(T)0.8, T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF);
+	      T beta=(T)0.8, T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF,
+	      std::string type="LLIF");
 
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
@@ -23,11 +24,11 @@ public:
 
   std::vector<T> m_v_membrane;
 
-private:
+protected:
   /* Update the LIF update rule to each neuron.  */
-  void
+  virtual void
   f32_neuron_update (uint32_t batch_begin);
-  void
+  virtual void
   f16_neuron_update (uint32_t batch_begin);
 
   /* Apply the weighted contribution of SPIKES_IN.  */
