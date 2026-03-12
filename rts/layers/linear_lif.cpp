@@ -26,27 +26,27 @@ linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 template<typename T>
 std::vector<uint32_t>
 linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
-				 uint32_t batch_begin)
+				 uint32_t batch_begin, uint32_t batch_end)
 {
-  rts_checking_assert (batch_begin + m_batch_size <= m_num_outputs);
+  rts_checking_assert (batch_begin < batch_end);
   if constexpr (std::is_same_v<T, float>)
     /* float32_t implementaion.  */
     {
-      f32_neuron_update (batch_begin);
-      f32_spike_prop (spikes_in, batch_begin);
+      f32_neuron_update (batch_begin, batch_end);
+      f32_spike_prop (spikes_in, batch_begin, batch_end);
     }
   else if constexpr (std::is_same_v<T, float16_t>)
     /* float16_t implementation.  */
     {
-      f16_neuron_update (batch_begin);
-      f16_spike_prop (spikes_in, batch_begin);
+      f16_neuron_update (batch_begin, batch_end);
+      f16_spike_prop (spikes_in, batch_begin, batch_end);
     }
   else
     rts_unreachable ("Type construction for linear_lif");
 
   std::vector<uint32_t> spike_out;
   /* Push the spiking neurons to SPIKE_OUT.  */
-  for (uint32_t i = batch_begin; i < batch_begin + m_batch_size; i++)
+  for (uint32_t i = batch_begin; i < batch_end; i++)
     {
       if (m_v_membrane[i] > m_v_thresh)
 	  spike_out.push_back (i);
@@ -57,13 +57,13 @@ linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 
 template<typename T>
 void
-linear_lif<T>::f32_neuron_update (uint32_t batch_begin)
+linear_lif<T>::f32_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 {
  if constexpr (std::is_same_v<T, float32_t>)
    {
-     const uint32_t batch_end = batch_begin + m_batch_size;
      /* Max iteration at VF of 4.  */
-     const uint32_t vector_max = batch_begin + (m_batch_size & ~0x03);
+     const uint32_t vector_max
+       = batch_begin + ((batch_end - batch_begin) & ~0x03);
      /* Vectorised constants for dynamics.  */
      const float32x4_t beta_splat   = vdupq_n_f32 (m_beta);
      const float32x4_t thresh_splat = vdupq_n_f32 (m_v_thresh);
@@ -101,13 +101,13 @@ linear_lif<T>::f32_neuron_update (uint32_t batch_begin)
 
 template<typename T>
 void
-linear_lif<T>::f16_neuron_update (uint32_t batch_begin)
+linear_lif<T>::f16_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 {
  if constexpr (std::is_same_v<T, float16_t>)
    {
-     const uint32_t batch_end = batch_begin + m_batch_size;
      /* Max iteration at VF of 8.  */
-     const uint32_t vector_max = batch_begin + (m_batch_size & ~0x07);
+     const uint32_t vector_max
+       = batch_begin + ((batch_end - batch_begin) & ~0x07);
      /* Vectorised constants for dynamics.  */
      const float16x8_t beta_splat   = vdupq_n_f16 (m_beta);
      const float16x8_t thresh_splat = vdupq_n_f16 (m_v_thresh);
@@ -147,14 +147,15 @@ linear_lif<T>::f16_neuron_update (uint32_t batch_begin)
 template<typename T>
 void
 linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
-			       uint32_t batch_begin)
+			       uint32_t batch_begin, uint32_t batch_end)
 {
   if constexpr (std::is_same_v<T, float32_t>)
     {
-      const uint32_t batch_end = batch_begin + m_batch_size;
       /* Max unrolled and vectorised iterations.  */
-      const uint32_t unroll_max = batch_begin + (m_batch_size & ~0x0F);
-      const uint32_t vector_max = batch_begin + (m_batch_size & ~0x03);
+      const uint32_t unroll_max
+	= batch_begin + ((batch_end - batch_begin) & ~0x0F);
+      const uint32_t vector_max
+	= batch_begin + ((batch_end - batch_begin) & ~0x03);
 
       if (spikes_in.size () != 0)
 	{
@@ -273,14 +274,15 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 template<typename T>
 void
 linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
-			       uint32_t batch_begin)
+			       uint32_t batch_begin, uint32_t batch_end)
 {
   if constexpr (std::is_same_v<T, float16_t>)
     {
-      const uint32_t batch_end = batch_begin + m_batch_size;
       /* Max unrolled and vectorised iterations.  */
-      const uint32_t unroll_max = batch_begin + (m_batch_size & ~0x1F);
-      const uint32_t vector_max = batch_begin + (m_batch_size & ~0x07);
+      const uint32_t unroll_max
+	= batch_begin + ((batch_end - batch_begin) & ~0x1F);
+      const uint32_t vector_max
+	= batch_begin + ((batch_end - batch_begin) & ~0x07);
 
       if (spikes_in.size () != 0)
 	{

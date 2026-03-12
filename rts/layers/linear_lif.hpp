@@ -14,7 +14,7 @@ public:
 
   std::vector<uint32_t>
   timestep_batched (const std::vector<uint32_t> &spikes_in,
-		    uint32_t batch_begin);
+		    uint32_t batch_begin, uint32_t batch_end);
 
   std::vector<uint32_t>
   worstcase_input ();
@@ -22,22 +22,20 @@ public:
   void
   reset ();
 
-  std::vector<T> m_v_membrane;
-
 protected:
   /* Update the LIF update rule to each neuron.  */
   virtual void
-  f32_neuron_update (uint32_t batch_begin);
+  f32_neuron_update (uint32_t batch_begin, uint32_t batch_end);
   virtual void
-  f16_neuron_update (uint32_t batch_begin);
+  f16_neuron_update (uint32_t batch_begin, uint32_t batch_end);
 
   /* Apply the weighted contribution of SPIKES_IN.  */
   void
   f32_spike_prop (const std::vector<uint32_t> &spikes_in,
-		  uint32_t batch_begin);
+		  uint32_t batch_begin, uint32_t batch_end);
   void
   f16_spike_prop (const std::vector<uint32_t> &spikes_in,
-		  uint32_t batch_begin);
+		  uint32_t batch_begin, uint32_t batch_end);
 
   /* Linear parameters.  */
   tensor<T> m_weights;
@@ -46,6 +44,7 @@ protected:
   /* LIF dynamics.  */
   T m_beta;
   T m_v_thresh;
+  std::vector<T> m_v_membrane;
 };
 
 #endif // LINEAR_LIF_H_

@@ -202,7 +202,7 @@ network::linear_partitioning ()
 	    {
 	      if (end != 0)
 		{
-		  sublayers.emplace_back (layer.get (), begin);
+		  sublayers.emplace_back (layer.get (), begin, end);
 		  l_slayers++;
 		  /* The next sublayer starts from where this one ends.  */
 		  begin = end;
@@ -218,7 +218,7 @@ network::linear_partitioning ()
 	}
       /* We've reached the end of this layer, and by definition the current
 	 sublayer.  */
-      sublayers.emplace_back (layer.get (), begin);
+      sublayers.emplace_back (layer.get (), begin, end);
       l_slayers++;
 
       /* Set BUFFER_RD for layer_i to BUFFER_WR of layer_{i-1}, but first,

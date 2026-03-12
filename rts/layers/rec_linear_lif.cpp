@@ -24,13 +24,13 @@ rec_linear_lif<T>::rec_linear_lif (tensor<T> weights, std::vector<T> bias,
 
 template<typename T>
 void
-rec_linear_lif<T>::f32_neuron_update (uint32_t batch_begin)
+rec_linear_lif<T>::f32_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 {
   if constexpr (std::is_same_v<T, float32_t>)
     {
-      const uint32_t batch_end = batch_begin + this->m_batch_size;
       /* Max iteration at VF of 4.  */
-      const uint32_t vector_max = batch_begin + (this->m_batch_size & ~0x03);
+      const uint32_t vector_max
+	= batch_begin + ((batch_end - batch_begin) & ~0x03);
       /* Vectorised constants for dynamics.  */
       const float32x4_t beta_splat   = vdupq_n_f32 (this->m_beta);
       const float32x4_t thresh_splat = vdupq_n_f32 (this->m_v_thresh);
@@ -80,13 +80,13 @@ rec_linear_lif<T>::f32_neuron_update (uint32_t batch_begin)
 
 template<typename T>
 void
-rec_linear_lif<T>::f16_neuron_update (uint32_t batch_begin)
+rec_linear_lif<T>::f16_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 {
   if constexpr (std::is_same_v<T, float16_t>)
     {
-      const uint32_t batch_end = batch_begin + this->m_batch_size;
       /* Max iteration at VF of 8.  */
-      const uint32_t vector_max = batch_begin + (this->m_batch_size & ~0x07);
+      const uint32_t vector_max
+	= batch_begin + ((batch_end - batch_begin) & ~0x07);
       /* Vectorised constants for dynamics.  */
       const float16x8_t beta_splat   = vdupq_n_f16 (this->m_beta);
       const float16x8_t thresh_splat = vdupq_n_f16 (this->m_v_thresh);
@@ -148,7 +148,7 @@ rec_linear_lif<T>::profile_worstcase_batch ()
 
   /* Measure the execution time under the heaviest load.  */
   clock_gettime (CLOCK_MONOTONIC, &start);
-  this->timestep_batched (input, 0);
+  this->timestep_batched (input, 0, this->m_batch_size);
   clock_gettime (CLOCK_MONOTONIC, &end);
 
   this->m_batch_cost_ns = (end.tv_sec - start.tv_sec) * 1E9

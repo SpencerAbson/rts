@@ -20,9 +20,9 @@ protected:
   /* Update the LIF update rule to each neuron, subtracting the
      recurrent weight if we spiked at the last timestep.  */
   void
-  f32_neuron_update (uint32_t batch_begin) override;
+  f32_neuron_update (uint32_t batch_begin, uint32_t batch_end) override;
   void
-  f16_neuron_update (uint32_t batch_begin) override;
+  f16_neuron_update (uint32_t batch_begin, uint32_t batch_end) override;
 
   std::vector<T> m_weights_rec;
 };

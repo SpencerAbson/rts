@@ -130,8 +130,8 @@ rt_thread::str_perf_metrics () const
 }
 
 /* sublayer impl.  */
-sublayer::sublayer (layer *l, uint32_t begin)
-  : l (l), begin (begin)
+sublayer::sublayer (layer *l, uint32_t begin, uint32_t end)
+  : l (l), begin (begin), end (end)
 {}
 
 std::string
@@ -140,7 +140,6 @@ sublayer::str_descr (uint32_t level) const
   std::string type = l->debug_type ();
   uint32_t buff_rd = l->buffer_rd_debug_id ();
   uint32_t buff_wr = l->buffer_wr_debug_id ();
-  uint32_t end = begin + l->batch_size ();
 
   std::string space = std::string (level, '\t');
   return std::format ("{}(sublayer:{} {} (range {} {})\n{}(buff:RD {})"
@@ -161,7 +160,7 @@ network_rtt::run ()
   while (m_alive.load (std::memory_order_relaxed))
     {
       for (sublayer &slayer : m_sublayers)
-	slayer.l->run (slayer.begin);
+	slayer.l->run (slayer.begin, slayer.end);
 
       complete_period ();
     }
