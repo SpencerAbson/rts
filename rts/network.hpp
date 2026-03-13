@@ -6,7 +6,7 @@
 class network
 {
 public:
-  network (uint32_t threads=2, uint64_t period_ns=1000000);
+  network (uint32_t threads=2, uint32_t period_us=1000);
   ~network ();
 
   /* Add a layer (in sequence) to the network.  */
@@ -27,6 +27,12 @@ public:
   std::string
   str_schematic_descr (uint32_t level=0) const;
 
+
+  /* Model each input neuron as a poisson source using a bernoulli
+     approximation.  */
+  std::vector<uint32_t>
+  generate_poisson_input (double rate_mhz);
+
 private:
   /* Kill all spawned threads.  */
   void
@@ -38,7 +44,7 @@ private:
   /* The number of threads used to parallelise the network.  */
   uint32_t m_num_threads;
   /* RT cyclic period.  */
-  uint64_t m_period_ns;
+  uint32_t m_period_us;
   /* The layers of a sequential spiking neural network (in order).  */
   std::vector<std::unique_ptr<layer>> m_layers;
 

@@ -1,15 +1,16 @@
 #include <memory>
+#include <random>
 #include <sys/mman.h>
 #include "util.h"
 #include "buffers.hpp"
 #include "rt_threads.hpp"
 #include "network.hpp"
 
-network::network (uint32_t threads, uint64_t period_ns)
-  : m_num_threads (threads), m_period_ns (period_ns)
+network::network (uint32_t threads, uint32_t period_us)
+  : m_num_threads (threads), m_period_us (period_us)
 {
   /* Better to catch nonesense now than later on...  */
-  assert (m_num_threads && period_ns);
+  assert (m_num_threads && period_us);
 }
 
 network::~network ()
@@ -53,14 +54,14 @@ network::initialise (std::vector<uint32_t> (*input_cb) (bool *),
 
   /* Create the input thread and keep a copy of its address.  */
   auto input_thread
-    = std::make_unique<input_rtt> (m_period_ns, input_cb,
+    = std::make_unique<input_rtt> (m_period_us, input_cb,
 				   m_layers.front ()->m_buffer_rd);
   m_input_thread = input_thread.get ();
   m_threads.push_back (std::move (input_thread));
 
   /* Create the output thread.  */
   m_threads.push_back
-    (std::make_unique<output_rtt> (m_period_ns, output_cb,
+    (std::make_unique<output_rtt> (m_period_us, output_cb,
 				   m_layers.back ()->m_buffer_wr));
 
   m_initialised = true;
@@ -209,7 +210,7 @@ network::linear_partitioning ()
 		}
 	      /* Record the current partition.  */
 	      m_threads.push_back
-		(std::make_unique<network_rtt> (m_period_ns, sublayers));
+		(std::make_unique<network_rtt> (m_period_us, sublayers));
 	      /* Reset SUBLAYERS and PARITION_COST.  */
 	      sublayers.clear ();
 	      partition_cost = batch_cost - (target - partition_cost);
@@ -233,8 +234,28 @@ network::linear_partitioning ()
     }
   /* Record the final parition.  */
   m_threads.push_back
-    (std::make_unique<network_rtt> (m_period_ns, sublayers));
+    (std::make_unique<network_rtt> (m_period_us, sublayers));
   /* We know that the final buffer (that which receives data from the last
      layer and is read by the output callback) has exactly one reader.  */
   buffer_prev->set_readers (1);
+}
+
+std::vector<uint32_t>
+network::generate_poisson_input (double rate_mhz)
+{
+  rts_checking_assert (m_layers.size () != 0);
+  /* A bernoulli approximation of each neuron as a poisson source.  */
+  std::random_device rd;
+  std::mt19937 g (rd ());
+  std::uniform_real_distribution<double> dist (0, 1);
+
+  std::vector<uint32_t> spikes;
+  double pred = rate_mhz * m_period_us;
+  for (uint32_t i = 0; i < m_layers[0]->input_size (); i++)
+    {
+      if (dist (g) < pred)
+	spikes.push_back (i);
+    }
+
+  return spikes;
 }

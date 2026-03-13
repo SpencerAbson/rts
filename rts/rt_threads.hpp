@@ -10,7 +10,7 @@ class rt_thread
 {
   static uint32_t m_debug_id_counter;
 public:
-  rt_thread (uint64_t period_ns, int priority=80);
+  rt_thread (uint32_t period_us, int priority=80);
   virtual ~rt_thread () = default;
 
   /* RT cyclic task implementation.  */
@@ -121,7 +121,7 @@ struct sublayer
 class network_rtt : public rt_thread
 {
 public:
-  network_rtt (uint64_t period_ns, std::vector<sublayer> slayers,
+  network_rtt (uint32_t period_us, std::vector<sublayer> slayers,
 	       int priority=80);
   void
   run ();
@@ -141,7 +141,7 @@ private:
 class input_rtt : public rt_thread
 {
 public:
-  input_rtt (uint64_t period_ns, std::vector<uint32_t> (*cb) (bool *),
+  input_rtt (uint32_t period_us, std::vector<uint32_t> (*cb) (bool *),
 	     spikebuffer *buff, int priority=80);
   void
   run ();
@@ -160,7 +160,7 @@ private:
 class output_rtt : public rt_thread
 {
 public:
-  output_rtt (uint64_t period_ns, void (*cb) (const std::vector<uint32_t> &),
+  output_rtt (uint32_t period_us, void (*cb) (const std::vector<uint32_t> &),
 	      spikebuffer *buff, int priority=80);
   void
   run ();

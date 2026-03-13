@@ -5,8 +5,8 @@
 
 uint32_t rt_thread::m_debug_id_counter = 0;
 
-rt_thread::rt_thread (uint64_t period_ns, int priority)
-  : m_period_ns (period_ns), m_priority (priority),
+rt_thread::rt_thread (uint32_t period_us, int priority)
+  : m_period_ns ((uint64_t)period_us * 1E3), m_priority (priority),
     m_debug_id (m_debug_id_counter)
 {
   m_debug_id_counter++;
@@ -149,9 +149,9 @@ sublayer::str_descr (uint32_t level) const
 
 
 /* network_rtt impl.  */
-network_rtt::network_rtt (uint64_t period_ns, std::vector<sublayer> slayers,
+network_rtt::network_rtt (uint32_t period_us, std::vector<sublayer> slayers,
 			  int priority)
-  : rt_thread (period_ns, priority), m_sublayers (slayers)
+  : rt_thread (period_us, priority), m_sublayers (slayers)
 {}
 
 void
@@ -180,9 +180,9 @@ network_rtt::str_descr (uint32_t level) const
 
 
 /* input_rtt impl.  */
-input_rtt::input_rtt (uint64_t period_ns, std::vector<uint32_t> (*cb) (bool *),
+input_rtt::input_rtt (uint32_t period_us, std::vector<uint32_t> (*cb) (bool *),
 		      spikebuffer *buff, int priority)
-  : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
+  : rt_thread (period_us, priority), m_buffer (buff), m_cb (cb)
 {}
 
 void
@@ -208,10 +208,10 @@ input_rtt::str_descr (uint32_t level) const
 }
 
 /* output_rtt impl.  */
-output_rtt::output_rtt (uint64_t period_ns,
+output_rtt::output_rtt (uint32_t period_us,
 			void (*cb) (const std::vector<uint32_t> &),
 			spikebuffer *buff, int priority)
-  : rt_thread (period_ns, priority), m_buffer (buff), m_cb (cb)
+  : rt_thread (period_us, priority), m_buffer (buff), m_cb (cb)
 {}
 
 void
