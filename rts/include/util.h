@@ -43,4 +43,19 @@ handle_timespec_overflow (timespec *ts)
   }
 }
 
+template<typename T>
+inline int
+weights_from_file (std::string path, size_t count, std::vector<T> &out)
+{
+  std::ifstream file (path, std::ifstream::binary);
+  if (!file.is_open ())
+    return -1;
+
+  out.resize (count);
+  file.read ((char *)out.data (), count * sizeof(T));
+
+  file.close ();
+  return 0;
+}
+
 #endif // UTIL_H_
