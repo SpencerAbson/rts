@@ -24,6 +24,31 @@ linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 }
 
 template<typename T>
+linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
+			   uint32_t num_inputs, uint32_t num_outputs,
+			   uint32_t batch_size, T beta, T v_thresh,
+			   uint64_t batch_cost, std::string type)
+  : layer (num_inputs, num_outputs, batch_size, batch_cost, type),
+    m_beta (beta),
+    m_v_thresh (v_thresh),
+    m_v_membrane (num_outputs)
+{
+  static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
+		 "Invalid type construction for linear_lif");
+
+  /* Raed in the bias.  */
+  int res = weights_from_file<T> (path_bias, num_inputs, m_bias);
+  assert (!res && "Could not read bias.");
+
+  std::vector<T> vec;
+  /* Likewise for the weights.  */
+  res = weights_from_file<T> (path_weights, num_inputs * num_outputs, vec);
+  assert (!res && "Could not read weights.");
+
+  m_weights = tensor<T> (vec, {num_inputs, num_outputs});
+}
+
+template<typename T>
 std::vector<uint32_t>
 linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 				 uint32_t batch_begin, uint32_t batch_end)

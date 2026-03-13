@@ -2,8 +2,11 @@
 #define UTIL_H_
 
 #include <format>
+#include <memory>
+#include <fstream>
 #include <iostream>
 #include <cassert>
+#include <vector>
 #include <time.h>
 #include <stdio.h>
 
