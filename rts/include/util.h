@@ -55,7 +55,7 @@ weights_from_file (std::string path, size_t count, std::vector<T> &out)
     return -1;
 
   out.resize (count);
-  file.read ((char *)out.data (), count * sizeof(T));
+  file.read ((char *)out.data (), count * sizeof (T));
 
   file.close ();
   return 0;
