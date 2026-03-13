@@ -1,6 +1,6 @@
 #include <numeric>
 #include <arm_neon.h>
-#include "tensor.hpp"
+#include "../include/tensor.hpp"
 
 template<typename T>
 tensor<T>::tensor (std::vector<T> data, std::vector<uint32_t> shape)

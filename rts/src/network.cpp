@@ -1,10 +1,10 @@
 #include <memory>
 #include <random>
 #include <sys/mman.h>
-#include "util.h"
-#include "buffers.hpp"
-#include "rt_threads.hpp"
-#include "network.hpp"
+#include "../include/util.h"
+#include "../include/buffers.hpp"
+#include "../include/rt_threads.hpp"
+#include "../include/network.hpp"
 
 network::network (uint32_t threads, uint32_t period_us)
   : m_num_threads (threads), m_period_us (period_us)
@@ -241,7 +241,7 @@ network::linear_partitioning ()
 }
 
 std::vector<uint32_t>
-network::generate_poisson_input (double rate_mhz)
+network::generate_poisson_input (double rate_mhz) const
 {
   rts_checking_assert (m_layers.size () != 0);
   /* A bernoulli approximation of each neuron as a poisson source.  */

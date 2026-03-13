@@ -1,5 +1,5 @@
-#include "util.h"
-#include "buffers.hpp"
+#include "../include/util.h"
+#include "../include/buffers.hpp"
 
 uint32_t spikebuffer::m_debug_id_counter = 0;
 

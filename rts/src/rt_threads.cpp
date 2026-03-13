@@ -1,7 +1,7 @@
 #include <sched.h>
 #include <pthread.h>
-#include "util.h"
-#include "rt_threads.hpp"
+#include "../include/util.h"
+#include "../include/rt_threads.hpp"
 
 uint32_t rt_thread::m_debug_id_counter = 0;
 

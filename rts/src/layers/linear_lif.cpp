@@ -2,9 +2,9 @@
 #include <string>
 #include <arm_neon.h>
 #include <type_traits>
-#include "../tensor.hpp"
-#include "../util.h"
-#include "linear_lif.hpp"
+#include "../../include/util.h"
+#include "../../include/tensor.hpp"
+#include "../../include/layers/linear_lif.hpp"
 
 template<typename T>
 linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,

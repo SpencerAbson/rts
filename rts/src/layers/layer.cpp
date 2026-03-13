@@ -1,6 +1,6 @@
 #include <cassert>
-#include "../util.h"
-#include "layer.hpp"
+#include "../../include/util.h"
+#include "../../include/layers/layer.hpp"
 
 uint32_t layer::m_debug_id_counter = 0;
 

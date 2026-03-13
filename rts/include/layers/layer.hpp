@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include "../util.h"
 #include "../buffers.hpp"
 
 #define COST_UNDEF 0

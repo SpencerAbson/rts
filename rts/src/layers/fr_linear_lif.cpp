@@ -1,9 +1,9 @@
 #include <random>
 #include <algorithm>
 #include <arm_neon.h>
-#include "../tensor.hpp"
-#include "../util.h"
-#include "fr_linear_lif.hpp"
+#include "../../include/util.h"
+#include "../../include/tensor.hpp"
+#include "../../include/layers/fr_linear_lif.hpp"
 
 fr_linear_lif::fr_linear_lif (tensor<float> weights_in, std::vector<float> bias,
 			      tensor<float> weights_rec, float beta,

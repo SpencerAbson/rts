@@ -1,9 +1,9 @@
 #include <arm_neon.h>
 #include <algorithm>
 #include <type_traits>
-#include "../tensor.hpp"
-#include "../util.h"
-#include "rec_linear_lif.hpp"
+#include "../../include/util.h"
+#include "../../include/tensor.hpp"
+#include "../../include/layers/rec_linear_lif.hpp"
 
 /* NOTE: Dervied members are not automatically brought into scope by
    C++'s templated inheritance rules, hence 'this->'.  */

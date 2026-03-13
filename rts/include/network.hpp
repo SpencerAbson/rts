@@ -1,6 +1,7 @@
 #ifndef  NETWORK_H
 #define  NETWORK_H
 
+#include "rt_threads.hpp"
 #include "layers/layer.hpp"
 
 class network
@@ -27,11 +28,10 @@ public:
   std::string
   str_schematic_descr (uint32_t level=0) const;
 
-
   /* Model each input neuron as a poisson source using a bernoulli
      approximation.  */
   std::vector<uint32_t>
-  generate_poisson_input (double rate_mhz);
+  generate_poisson_input (double rate_mhz) const;
 
 private:
   /* Kill all spawned threads.  */
