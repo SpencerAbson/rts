@@ -1,6 +1,7 @@
 #ifndef  NETWORK_H
 #define  NETWORK_H
 
+#include <functional>
 #include "rt_threads.hpp"
 #include "layers/layer.hpp"
 
@@ -15,8 +16,8 @@ public:
   add_layer (std::unique_ptr<layer> l);
   /* Distribute the workload, set input/output callbacks, etc.  */
   void
-  initialise (std::vector<uint32_t> (*input_cb) (bool *),
-	      void (*output_cb) (const std::vector<uint32_t> &));
+  initialise (std::function<std::vector<uint32_t> (bool *)> input,
+	      std::function<void (const std::vector<uint32_t>&)> output);
   /* Run an initialised network.  */
   int
   run ();

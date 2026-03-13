@@ -38,8 +38,8 @@ network::add_layer (std::unique_ptr<layer> l)
 }
 
 void
-network::initialise (std::vector<uint32_t> (*input_cb) (bool *),
-		     void (*output_cb) (const std::vector<uint32_t> &))
+network::initialise (std::function<std::vector<uint32_t> (bool *)> input,
+		     std::function<void (const std::vector<uint32_t>&)> output)
 {
   assert (!m_initialised && !m_layers.empty ());
   /* Profile any layer whose cost is undefined.  */
@@ -54,14 +54,14 @@ network::initialise (std::vector<uint32_t> (*input_cb) (bool *),
 
   /* Create the input thread and keep a copy of its address.  */
   auto input_thread
-    = std::make_unique<input_rtt> (m_period_us, input_cb,
+    = std::make_unique<input_rtt> (m_period_us, input,
 				   m_layers.front ()->m_buffer_rd);
   m_input_thread = input_thread.get ();
   m_threads.push_back (std::move (input_thread));
 
   /* Create the output thread.  */
   m_threads.push_back
-    (std::make_unique<output_rtt> (m_period_us, output_cb,
+    (std::make_unique<output_rtt> (m_period_us, output,
 				   m_layers.back ()->m_buffer_wr));
 
   m_initialised = true;

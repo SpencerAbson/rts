@@ -180,7 +180,8 @@ network_rtt::str_descr (uint32_t level) const
 
 
 /* input_rtt impl.  */
-input_rtt::input_rtt (uint32_t period_us, std::vector<uint32_t> (*cb) (bool *),
+input_rtt::input_rtt (uint32_t period_us,
+		      std::function<std::vector<uint32_t> (bool *)> cb,
 		      spikebuffer *buff, int priority)
   : rt_thread (period_us, priority), m_buffer (buff), m_cb (cb)
 {}
@@ -209,7 +210,7 @@ input_rtt::str_descr (uint32_t level) const
 
 /* output_rtt impl.  */
 output_rtt::output_rtt (uint32_t period_us,
-			void (*cb) (const std::vector<uint32_t> &),
+			std::function<void (const std::vector<uint32_t> &)> cb,
 			spikebuffer *buff, int priority)
   : rt_thread (period_us, priority), m_buffer (buff), m_cb (cb)
 {}

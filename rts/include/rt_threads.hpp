@@ -2,6 +2,7 @@
 #define RT_THREADS_H_
 
 #include <atomic>
+#include <functional>
 #include "buffers.hpp"
 #include "layers/layer.hpp"
 
@@ -141,7 +142,8 @@ private:
 class input_rtt : public rt_thread
 {
 public:
-  input_rtt (uint32_t period_us, std::vector<uint32_t> (*cb) (bool *),
+  input_rtt (uint32_t period_us,
+	     std::function<std::vector<uint32_t> (bool *)> cb,
 	     spikebuffer *buff, int priority=80);
   void
   run ();
@@ -152,7 +154,7 @@ private:
   /* Written to by us only, read by threads running the first layer.  */
   spikebuffer *m_buffer = nullptr;
   /* Callback.  */
-  std::vector<uint32_t> (*m_cb) (bool *) = nullptr;
+  std::function<std::vector<uint32_t> (bool *)> m_cb;
 };
 
 /* A thread which reads from the buffer M_BUFFER written to by the thread(s)
@@ -160,7 +162,8 @@ private:
 class output_rtt : public rt_thread
 {
 public:
-  output_rtt (uint32_t period_us, void (*cb) (const std::vector<uint32_t> &),
+  output_rtt (uint32_t period_us,
+	      std::function<void (const std::vector<uint32_t> &)> cb,
 	      spikebuffer *buff, int priority=80);
   void
   run ();
@@ -171,7 +174,7 @@ private:
   /* Written to by threads running the last layer, read by us only.  */
   spikebuffer *m_buffer = nullptr;
   /* Callback.  */
-  void (*m_cb) (const std::vector<uint32_t> &) = nullptr;
+  std::function<void (const std::vector<uint32_t>&)> m_cb;
 };
 
 #endif // RT_THREADS_H_
