@@ -37,10 +37,12 @@ protected:
   /* Apply the weighted contribution of SPIKES_IN.  */
   void
   f32_spike_prop (const std::vector<uint32_t> &spikes_in,
-		  uint32_t batch_begin, uint32_t batch_end);
+		  const tensor<T> &weights, uint32_t batch_begin,
+		  uint32_t batch_end);
   void
   f16_spike_prop (const std::vector<uint32_t> &spikes_in,
-		  uint32_t batch_begin, uint32_t batch_end);
+		  const tensor<T> &weights, uint32_t batch_begin,
+		  uint32_t batch_end);
 
   /* Linear parameters.  */
   tensor<T> m_weights;

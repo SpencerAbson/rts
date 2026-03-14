@@ -58,13 +58,13 @@ linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
     /* float32_t implementaion.  */
     {
       f32_neuron_update (batch_begin, batch_end);
-      f32_spike_prop (spikes_in, batch_begin, batch_end);
+      f32_spike_prop (spikes_in, m_weights, batch_begin, batch_end);
     }
   else if constexpr (std::is_same_v<T, float16_t>)
     /* float16_t implementation.  */
     {
       f16_neuron_update (batch_begin, batch_end);
-      f16_spike_prop (spikes_in, batch_begin, batch_end);
+      f16_spike_prop (spikes_in, m_weights, batch_begin, batch_end);
     }
   else
     rts_unreachable ("Type construction for linear_lif");
@@ -172,6 +172,7 @@ linear_lif<T>::f16_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 template<typename T>
 void
 linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
+			       const tensor<T> &weights_in,
 			       uint32_t batch_begin, uint32_t batch_end)
 {
   if constexpr (std::is_same_v<T, float32_t>)
@@ -184,7 +185,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 
       if (spikes_in.size () != 0)
 	{
-	  uint32_t stride = m_weights.stride[0];
+	  uint32_t stride = weights_in.stride[0];
 	  uint32_t offset;
 	  uint32_t next_offset = spikes_in[0] * stride;
 	  for (uint32_t i = 0; i < spikes_in.size () - 1; i++)
@@ -210,26 +211,26 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 		 instruction  per iteration.  */
 	      for (uint32_t j = batch_begin; j < unroll_max; j+= 16)
 		{
-		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 2);
+		  __builtin_prefetch (&weights_in.vec[next_offset + j], 0, 2);
 
 		  float32x4_t weights
-		    = vld1q_f32 (&m_weights.vec[offset + j]);
+		    = vld1q_f32 (&weights_in.vec[offset + j]);
 		  float32x4_t membranes
 		    = vld1q_f32 (&m_v_membrane[j]);
 		  vst1q_f32 (&m_v_membrane[j],
 			     vaddq_f32 (membranes, weights));
 
-		  weights = vld1q_f32 (&m_weights.vec[offset + j + 4]);
+		  weights = vld1q_f32 (&weights_in.vec[offset + j + 4]);
 		  membranes = vld1q_f32 (&m_v_membrane[j + 4]);
 		  vst1q_f32 (&m_v_membrane[j + 4],
 			     vaddq_f32 (membranes, weights));
 
-		  weights = vld1q_f32 (&m_weights.vec[offset + j + 8]);
+		  weights = vld1q_f32 (&weights_in.vec[offset + j + 8]);
 		  membranes = vld1q_f32 (&m_v_membrane[j + 8]);
 		  vst1q_f32 (&m_v_membrane[j + 8],
 			     vaddq_f32 (membranes, weights));
 
-		  weights = vld1q_f32 (&m_weights.vec[offset + j + 12]);
+		  weights = vld1q_f32 (&weights_in.vec[offset + j + 12]);
 		  membranes = vld1q_f32 (&m_v_membrane[j + 12]);
 		  vst1q_f32 (&m_v_membrane[j + 12],
 			     vaddq_f32 (membranes, weights));
@@ -238,7 +239,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 	      for (uint32_t j = unroll_max; j < vector_max; j+=4)
 		{
 		  float32x4_t weights
-		    = vld1q_f32 (&m_weights.vec[offset + j]);
+		    = vld1q_f32 (&weights_in.vec[offset + j]);
 		  float32x4_t membranes
 		    = vld1q_f32 (&m_v_membrane[j]);
 
@@ -247,29 +248,29 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 		}
 	      /* Vector epilogue.  */
 	      for (uint32_t j = vector_max; j < batch_end; j++)
-		m_v_membrane[j] += m_weights.vec[offset + j];
+		m_v_membrane[j] += weights_in.vec[offset + j];
 	    }
 	  /* The final spike...  */
 	  for (uint32_t j = batch_begin; j < unroll_max; j+= 16)
 	    {
 	      float32x4_t weights
-		= vld1q_f32 (&m_weights.vec[next_offset + j]);
+		= vld1q_f32 (&weights_in.vec[next_offset + j]);
 	      float32x4_t membranes
 		= vld1q_f32 (&m_v_membrane[j]);
 	      vst1q_f32 (&m_v_membrane[j],
 			 vaddq_f32 (membranes, weights));
 
-	      weights = vld1q_f32 (&m_weights.vec[next_offset + j + 4]);
+	      weights = vld1q_f32 (&weights_in.vec[next_offset + j + 4]);
 	      membranes = vld1q_f32 (&m_v_membrane[j + 4]);
 	      vst1q_f32 (&m_v_membrane[j + 4],
 			 vaddq_f32 (membranes, weights));
 
-	      weights = vld1q_f32 (&m_weights.vec[next_offset + j + 8]);
+	      weights = vld1q_f32 (&weights_in.vec[next_offset + j + 8]);
 	      membranes = vld1q_f32 (&m_v_membrane[j + 8]);
 	      vst1q_f32 (&m_v_membrane[j + 8],
 			 vaddq_f32 (membranes, weights));
 
-	      weights = vld1q_f32 (&m_weights.vec[next_offset + j + 12]);
+	      weights = vld1q_f32 (&weights_in.vec[next_offset + j + 12]);
 	      membranes = vld1q_f32 (&m_v_membrane[j + 12]);
 	      vst1q_f32 (&m_v_membrane[j + 12],
 			 vaddq_f32 (membranes, weights));
@@ -278,7 +279,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 	  for (uint32_t j = unroll_max; j < vector_max; j+=4)
 	    {
 	      float32x4_t weights
-		= vld1q_f32 (&m_weights.vec[next_offset + j]);
+		= vld1q_f32 (&weights_in.vec[next_offset + j]);
 	      float32x4_t membranes
 		= vld1q_f32 (&m_v_membrane[j]);
 
@@ -287,7 +288,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 	    }
 	  /* Vector epilogue.  */
 	  for (uint32_t j = vector_max; j < batch_end; j++)
-	    m_v_membrane[j] += m_weights.vec[next_offset + j];
+	    m_v_membrane[j] += weights_in.vec[next_offset + j];
 	}
     }
   else
@@ -299,6 +300,7 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 template<typename T>
 void
 linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
+			       const tensor<T> &weights_in,
 			       uint32_t batch_begin, uint32_t batch_end)
 {
   if constexpr (std::is_same_v<T, float16_t>)
@@ -311,7 +313,7 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 
       if (spikes_in.size () != 0)
 	{
-	  uint32_t stride = m_weights.stride[0];
+	  uint32_t stride = weights_in.stride[0];
 	  uint32_t offset;
 	  uint32_t next_offset = spikes_in[0] * stride;
 	  for (uint32_t i = 0; i < spikes_in.size () - 1; i++)
@@ -337,26 +339,26 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 		 instruction  per iteration.  */
 	      for (uint32_t j = batch_begin; j < unroll_max; j+= 32)
 		{
-		  __builtin_prefetch (&m_weights.vec[next_offset + j], 0, 2);
+		  __builtin_prefetch (&weights_in.vec[next_offset + j], 0, 2);
 
 		  float16x8_t weights
-		    = vld1q_f16 (&m_weights.vec[offset + j]);
+		    = vld1q_f16 (&weights_in.vec[offset + j]);
 		  float16x8_t membranes
 		    = vld1q_f16 (&m_v_membrane[j]);
 		  vst1q_f16 (&m_v_membrane[j],
 			     vaddq_f16 (membranes, weights));
 
-		  weights = vld1q_f16 (&m_weights.vec[offset + j + 8]);
+		  weights = vld1q_f16 (&weights_in.vec[offset + j + 8]);
 		  membranes = vld1q_f16 (&m_v_membrane[j + 8]);
 		  vst1q_f16 (&m_v_membrane[j + 8],
 			     vaddq_f16 (membranes, weights));
 
-		  weights = vld1q_f16 (&m_weights.vec[offset + j + 16]);
+		  weights = vld1q_f16 (&weights_in.vec[offset + j + 16]);
 		  membranes = vld1q_f16 (&m_v_membrane[j + 16]);
 		  vst1q_f16 (&m_v_membrane[j + 16],
 			     vaddq_f16 (membranes, weights));
 
-		  weights = vld1q_f16 (&m_weights.vec[offset + j + 24]);
+		  weights = vld1q_f16 (&weights_in.vec[offset + j + 24]);
 		  membranes = vld1q_f16 (&m_v_membrane[j + 24]);
 		  vst1q_f16 (&m_v_membrane[j + 24],
 			     vaddq_f16 (membranes, weights));
@@ -365,7 +367,7 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 	      for (uint32_t j = unroll_max; j < vector_max; j+=8)
 		{
 		  float16x8_t weights
-		    = vld1q_f16 (&m_weights.vec[offset + j]);
+		    = vld1q_f16 (&weights_in.vec[offset + j]);
 		  float16x8_t membranes
 		    = vld1q_f16 (&m_v_membrane[j]);
 
@@ -374,29 +376,29 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 		}
 	      /* Vector epilogue.  */
 	      for (uint32_t j = vector_max; j < batch_end; j++)
-		m_v_membrane[j] += m_weights.vec[offset + j];
+		m_v_membrane[j] += weights_in.vec[offset + j];
 	    }
 	  /* The final spike...  */
 	  for (uint32_t j = batch_begin; j < unroll_max; j+= 32)
 	    {
 	      float16x8_t weights
-		= vld1q_f16 (&m_weights.vec[next_offset + j]);
+		= vld1q_f16 (&weights_in.vec[next_offset + j]);
 	      float16x8_t membranes
 		= vld1q_f16 (&m_v_membrane[j]);
 	      vst1q_f16 (&m_v_membrane[j],
 			 vaddq_f16 (membranes, weights));
 
-	      weights = vld1q_f16 (&m_weights.vec[next_offset + j + 8]);
+	      weights = vld1q_f16 (&weights_in.vec[next_offset + j + 8]);
 	      membranes = vld1q_f16 (&m_v_membrane[j + 8]);
 	      vst1q_f16 (&m_v_membrane[j + 8],
 			 vaddq_f16 (membranes, weights));
 
-	      weights = vld1q_f16 (&m_weights.vec[next_offset + j + 16]);
+	      weights = vld1q_f16 (&weights_in.vec[next_offset + j + 16]);
 	      membranes = vld1q_f16 (&m_v_membrane[j + 16]);
 	      vst1q_f16 (&m_v_membrane[j + 16],
 			 vaddq_f16 (membranes, weights));
 
-	      weights = vld1q_f16 (&m_weights.vec[next_offset + j + 24]);
+	      weights = vld1q_f16 (&weights_in.vec[next_offset + j + 24]);
 	      membranes = vld1q_f16 (&m_v_membrane[j + 24]);
 	      vst1q_f16 (&m_v_membrane[j + 24],
 			 vaddq_f16 (membranes, weights));
@@ -405,7 +407,7 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 	  for (uint32_t j = unroll_max; j < vector_max; j+=8)
 	    {
 	      float16x8_t weights
-		= vld1q_f16 (&m_weights.vec[next_offset + j]);
+		= vld1q_f16 (&weights_in.vec[next_offset + j]);
 	      float16x8_t membranes
 		= vld1q_f16 (&m_v_membrane[j]);
 
@@ -414,7 +416,7 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 	    }
 	  /* Vector epilogue.  */
 	  for (uint32_t j = vector_max; j < batch_end; j++)
-	    m_v_membrane[j] += m_weights.vec[next_offset + j];
+	    m_v_membrane[j] += weights_in.vec[next_offset + j];
 	}
     }
   else

@@ -88,6 +88,13 @@ public:
     return m_num_outputs / m_batch_size;
   }
 
+  /* If the network parallelises the execution of this layer, it must
+     register this information so that we can ensure the execution is
+     thread-safe at COUNT threads.  */
+  virtual void
+  register_num_sublayers (uint32_t count)
+  {}
+
   /* Reset the state of any variable dynamics.  */
   virtual void
   reset () = 0;

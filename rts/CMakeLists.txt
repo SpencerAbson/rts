@@ -12,7 +12,7 @@ add_library(rts STATIC
 	src/layers/layer.cpp
 	src/layers/linear_lif.cpp
 	src/layers/rec_linear_lif.cpp
-	src/layers/fr_linear_lif.cpp
+	src/layers/full_rec_linear_lif.cpp
 )
 
 target_include_directories(rts PUBLIC include)

@@ -231,6 +231,9 @@ network::linear_partitioning ()
       buffer_prev = new spikebuffer ();
       buffer_prev->set_writers (l_slayers);
       layer->m_buffer_wr = buffer_prev;
+
+      /* Tell the layer about what we've done.  */
+      layer->register_num_sublayers (l_slayers);
     }
   /* Record the final parition.  */
   m_threads.push_back
@@ -278,5 +281,6 @@ network::inference (std::vector<uint32_t> spikes)
   debug_dump ("latency: {} ns\n", (end.tv_sec - start.tv_sec) * 1E9
 	      + end.tv_nsec - start.tv_nsec);
 #endif
+
   return spikes;
 }
