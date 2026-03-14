@@ -28,6 +28,14 @@ public:
   reset ();
 
 protected:
+  /* Convenience type-checking wrapper over the below.  */
+  void
+  neuron_update (uint32_t batch_begin, uint32_t batch_end);
+  void
+  spike_prop (const std::vector<uint32_t> &spikes_in,
+	      const tensor<T> &weights, uint32_t batch_begin,
+	      uint32_t batch_end);
+
   /* Update the LIF update rule to each neuron.  */
   virtual void
   f32_neuron_update (uint32_t batch_begin, uint32_t batch_end);

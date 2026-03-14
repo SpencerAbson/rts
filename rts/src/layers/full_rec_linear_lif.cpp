@@ -32,31 +32,16 @@ full_rec_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in
 					  uint32_t batch_begin, uint32_t batch_end)
 {
   rts_checking_assert (batch_begin < batch_end);
-
-  if constexpr (std::is_same_v<T, float>)
-    /* float32_t implementaion.  */
-    {
-      this->f32_neuron_update (batch_begin, batch_end);
-      /* Forward contribution.  */
-      this->f32_spike_prop (spikes_in, this->m_weights, batch_begin, batch_end);
-      /* Recurrent contribution.  */
-      this->f32_spike_prop (m_buffer_rec.read (), m_weights_rec, batch_begin,
-			    batch_end);
-    }
-  else if constexpr (std::is_same_v<T, float16_t>)
-    /* float16_t implementation.  */
-    {
-      this->f16_neuron_update (batch_begin, batch_end);
-      /* Forward contribution.  */
-      this->f16_spike_prop (spikes_in, this->m_weights, batch_begin, batch_end);
-      /* Recurrent contribution.  */
-      this->f16_spike_prop (m_buffer_rec.read (), m_weights_rec, batch_begin,
-			    batch_end);
-    }
-  else
-    rts_unreachable ("Type construction for full_rec_linear_lif");
-
   std::vector<uint32_t> spike_out;
+
+  /* Update the neurons w.r.t the LIF update rule.  */
+  this->neuron_update (batch_begin, batch_end);
+  /* Handle the linear spiking input.  */
+  this->spike_prop (spikes_in, this->m_weights, batch_begin, batch_end);
+  /* Handle the recurrent spiking input.  */
+  this->spike_prop (m_buffer_rec.read (), this->m_weights_rec, batch_begin,
+		    batch_end);
+
   /* Push the spiking neurons to SPIKE_OUT.  */
   for (uint32_t i = batch_begin; i < batch_end; i++)
     {

@@ -54,22 +54,13 @@ linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 				 uint32_t batch_begin, uint32_t batch_end)
 {
   rts_checking_assert (batch_begin < batch_end);
-  if constexpr (std::is_same_v<T, float>)
-    /* float32_t implementaion.  */
-    {
-      f32_neuron_update (batch_begin, batch_end);
-      f32_spike_prop (spikes_in, m_weights, batch_begin, batch_end);
-    }
-  else if constexpr (std::is_same_v<T, float16_t>)
-    /* float16_t implementation.  */
-    {
-      f16_neuron_update (batch_begin, batch_end);
-      f16_spike_prop (spikes_in, m_weights, batch_begin, batch_end);
-    }
-  else
-    rts_unreachable ("Type construction for linear_lif");
-
   std::vector<uint32_t> spike_out;
+
+  /* Update the neurons w.r.t the LIF update rule.  */
+  neuron_update (batch_begin, batch_end);
+  /* Handle the spiking input.  */
+  spike_prop (spikes_in, m_weights, batch_begin, batch_end);
+
   /* Push the spiking neurons to SPIKE_OUT.  */
   for (uint32_t i = batch_begin; i < batch_end; i++)
     {
@@ -78,6 +69,32 @@ linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
     }
 
   return spike_out;
+}
+
+template<typename T>
+void
+linear_lif<T>::neuron_update (uint32_t batch_begin, uint32_t batch_end)
+{
+  if constexpr (std::is_same_v<T, float>)
+    f32_neuron_update (batch_begin, batch_end);
+  else if constexpr (std::is_same_v<T, float16_t>)
+    f16_neuron_update (batch_begin, batch_end);
+  else
+    rts_unreachable ("Type construction for linear_lif");
+}
+
+template<typename T>
+void
+linear_lif<T>::spike_prop (const std::vector<uint32_t> &spikes_in,
+			   const tensor<T> &weights, uint32_t batch_begin,
+			   uint32_t batch_end)
+{
+  if constexpr (std::is_same_v<T, float>)
+    f32_spike_prop (spikes_in, weights, batch_begin, batch_end);
+  else if constexpr (std::is_same_v<T, float16_t>)
+    f16_spike_prop (spikes_in, weights, batch_begin, batch_end);
+  else
+    rts_unreachable ("Type construction for linear_lif");
 }
 
 template<typename T>
