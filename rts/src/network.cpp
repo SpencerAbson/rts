@@ -259,3 +259,24 @@ network::generate_poisson_input (double rate_mhz) const
 
   return spikes;
 }
+
+std::vector<uint32_t>
+network::inference (std::vector<uint32_t> spikes)
+{
+  /* The latter is just to prevent misuse.  */
+  assert (m_layers.size () != 0 && !m_initialised);
+
+#ifdef EN_PROFILE_NETWORK
+  timespec start, end;
+  clock_gettime (CLOCK_MONOTONIC, &start);
+#endif
+  for (auto &layer : m_layers)
+    spikes = layer->timestep (spikes);
+
+#ifdef EN_PROFILE_NETWORK
+  clock_gettime (CLOCK_MONOTONIC, &end);
+  debug_dump ("latency: {} ns\n", (end.tv_sec - start.tv_sec) * 1E9
+	      + end.tv_nsec - start.tv_nsec);
+#endif
+  return spikes;
+}
