@@ -137,14 +137,9 @@ sublayer::sublayer (layer *l, uint32_t begin, uint32_t end)
 std::string
 sublayer::str_descr (uint32_t level) const
 {
-  std::string type = l->debug_type ();
-  uint32_t buff_rd = l->buffer_rd_debug_id ();
-  uint32_t buff_wr = l->buffer_wr_debug_id ();
-
-  std::string space = std::string (level, '\t');
-  return std::format ("{}(sublayer:{} {} (range {} {})\n{}(buff:RD {})"
-		      " (buff:WR {}))", space, type, l->debug_id (),
-		      begin, end, space + '\t', buff_rd, buff_wr);
+  return std::format ("{}(sublayer:{} {} (range {} {})\n{})",
+		      std::string (level, '\t') , l->debug_type (),
+		      l->debug_id (), begin, end, l->str_buffers (level + 1));
 }
 
 

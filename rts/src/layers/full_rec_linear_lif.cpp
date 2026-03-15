@@ -55,6 +55,20 @@ full_rec_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in
 }
 
 template<typename T>
+std::string
+full_rec_linear_lif<T>::str_buffers (uint32_t level) const
+{
+  std::string read = this->m_buffer_rd == nullptr ? ""
+    : std::format ("(buff:RD {}) ", this->m_buffer_rd->debug_id ());
+
+  std::string write = this->m_buffer_rd == nullptr ? ""
+    : std::format ("(buff:WR {}) ", this->m_buffer_wr->debug_id ());
+
+  return std::format ("{}{}{}(buff:REC {})", std::string (level, '\t'),
+		      read, write, m_buffer_rec.debug_id ());
+}
+
+template<typename T>
 void
 full_rec_linear_lif<T>::register_num_sublayers (uint32_t count)
 {

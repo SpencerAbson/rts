@@ -21,6 +21,18 @@ layer::str_descr (uint32_t level) const
 		      m_debug_type, m_debug_id, m_num_inputs, m_num_outputs);
 }
 
+std::string
+layer::str_buffers (uint32_t level) const
+{
+  std::string read = m_buffer_rd == nullptr ? ""
+    : std::format ("(buff:RD {}) ", m_buffer_rd->debug_id ());
+
+  std::string write = m_buffer_rd == nullptr ? ""
+    : std::format ("(buff:WR {})", m_buffer_wr->debug_id ());
+
+  return std::format ("{}{}{}", std::string (level, '\t'), read, write);
+}
+
 std::vector<uint32_t>
 layer::timestep (const std::vector<uint32_t> &spikes_in)
 {

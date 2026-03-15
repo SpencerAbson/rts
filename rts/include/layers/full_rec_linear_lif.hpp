@@ -17,6 +17,9 @@ public:
   timestep_batched (const std::vector<uint32_t> &spikes_in,
 		    uint32_t batch_begin, uint32_t batch_end);
 
+  std::string
+  str_buffers (uint32_t level=0) const override;
+
   void
   register_num_sublayers (uint32_t count) override;
 

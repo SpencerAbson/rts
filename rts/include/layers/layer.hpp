@@ -28,8 +28,13 @@ public:
   virtual std::vector<uint32_t>
   worstcase_input () = 0;
 
+  /* Logical view.  */
   std::string
   str_descr (uint32_t level=0) const;
+
+  /* Schematic view helper.  */
+  virtual std::string
+  str_buffers (uint32_t level=0) const;
 
   const std::string&
   debug_type () const
@@ -41,20 +46,6 @@ public:
   debug_id () const
   {
     return m_debug_id;
-  }
-
-  uint32_t
-  buffer_rd_debug_id () const
-  {
-    rts_checking_assert (m_buffer_rd != nullptr);
-    return m_buffer_rd->debug_id ();
-  }
-
-  uint32_t
-  buffer_wr_debug_id () const
-  {
-    rts_checking_assert (m_buffer_wr != nullptr);
-    return m_buffer_wr->debug_id ();
   }
 
   uint32_t
@@ -118,11 +109,11 @@ private:
   void
   write (const std::vector<uint32_t> &spikes);
 
+protected:
   /* Lifetimes managed by the network.  */
   spikebuffer *m_buffer_rd = nullptr;
   spikebuffer *m_buffer_wr = nullptr;
 
-protected:
   /* An estimate of the worst-case latency.  Virtual as some layers (recurrent)
      may have dynamics which affect their latency other than just the input.  */
   virtual void
