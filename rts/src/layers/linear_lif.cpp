@@ -1,4 +1,3 @@
-#include <random>
 #include <string>
 #include <arm_neon.h>
 #include <type_traits>
@@ -434,9 +433,7 @@ linear_lif<T>::worstcase_input ()
 
   /* Shuffle this to (hopefully) avoid an optimistically linear
      access pattern.  */
-  std::random_device rd;
-  std::mt19937 g (rd ());
-  std::shuffle (spike_in.begin (), spike_in.end (), g);
+  std::shuffle (spike_in.begin (), spike_in.end (), mersenne_twister ());
 
   return spike_in;
 }

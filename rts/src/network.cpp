@@ -1,5 +1,4 @@
 #include <memory>
-#include <random>
 #include <sys/mman.h>
 #include "../include/util.h"
 #include "../include/buffers.hpp"
@@ -248,15 +247,13 @@ network::generate_poisson_input (double rate_mhz) const
 {
   rts_checking_assert (m_layers.size () != 0);
   /* A bernoulli approximation of each neuron as a poisson source.  */
-  std::random_device rd;
-  std::mt19937 g (rd ());
+  std::vector<uint32_t> spikes;
   std::uniform_real_distribution<double> dist (0, 1);
 
-  std::vector<uint32_t> spikes;
   double pred = rate_mhz * m_period_us;
   for (uint32_t i = 0; i < m_layers[0]->input_size (); i++)
     {
-      if (dist (g) < pred)
+      if (dist (mersenne_twister ()) < pred)
 	spikes.push_back (i);
     }
 

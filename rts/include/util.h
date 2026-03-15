@@ -3,6 +3,7 @@
 
 #include <format>
 #include <memory>
+#include <random>
 #include <fstream>
 #include <iostream>
 #include <cassert>
@@ -59,6 +60,14 @@ weights_from_file (std::string path, size_t count, std::vector<T> &out)
 
   file.close ();
   return 0;
+}
+
+inline std::mt19937&
+mersenne_twister ()
+{
+  static std::random_device rd;
+  static std::mt19937 g (rd ());
+  return g;
 }
 
 #endif // UTIL_H_
