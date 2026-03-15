@@ -37,12 +37,12 @@ linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
 		 "Invalid type construction for linear_lif");
 
   /* Raed in the bias.  */
-  int res = weights_from_file<T> (path_bias, num_inputs, m_bias);
+  int res = weights_from_file (path_bias, num_inputs, m_bias);
   assert (!res && "Could not read bias.");
 
   std::vector<T> vec;
   /* Likewise for the weights.  */
-  res = weights_from_file<T> (path_weights, num_inputs * num_outputs, vec);
+  res = weights_from_file (path_weights, num_inputs * num_outputs, vec);
   assert (!res && "Could not read weights.");
 
   m_weights = tensor<T> (vec, {num_inputs, num_outputs});
@@ -79,8 +79,6 @@ linear_lif<T>::neuron_update (uint32_t batch_begin, uint32_t batch_end)
     f32_neuron_update (batch_begin, batch_end);
   else if constexpr (std::is_same_v<T, float16_t>)
     f16_neuron_update (batch_begin, batch_end);
-  else
-    rts_unreachable ("Type construction for linear_lif");
 }
 
 template<typename T>
@@ -93,8 +91,6 @@ linear_lif<T>::spike_prop (const std::vector<uint32_t> &spikes_in,
     f32_spike_prop (spikes_in, weights, batch_begin, batch_end);
   else if constexpr (std::is_same_v<T, float16_t>)
     f16_spike_prop (spikes_in, weights, batch_begin, batch_end);
-  else
-    rts_unreachable ("Type construction for linear_lif");
 }
 
 template<typename T>
@@ -134,10 +130,6 @@ linear_lif<T>::f32_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 
 	 m_v_membrane[i] = update;
        }
-   }
- else
-   {
-     rts_unreachable ("Type construction for linear_lif");
    }
 }
 
@@ -179,10 +171,6 @@ linear_lif<T>::f16_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 
 	 m_v_membrane[i] = update;
        }
-   }
- else
-   {
-     rts_unreachable ("Type construction for linear_lif");
    }
 }
 
@@ -308,10 +296,6 @@ linear_lif<T>::f32_spike_prop (const std::vector<uint32_t> &spikes_in,
 	    m_v_membrane[j] += weights_in.vec[next_offset + j];
 	}
     }
-  else
-    {
-      rts_unreachable ("Type construction for linear_lif");
-    }
 }
 
 template<typename T>
@@ -435,10 +419,6 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 	  for (uint32_t j = vector_max; j < batch_end; j++)
 	    m_v_membrane[j] += weights_in.vec[next_offset + j];
 	}
-    }
-  else
-    {
-      rts_unreachable ("Type construction for linear_lif");
     }
 }
 

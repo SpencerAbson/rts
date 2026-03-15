@@ -72,10 +72,6 @@ rec_linear_lif<T>::f32_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 	  this->m_v_membrane[i] = update;
 	}
     }
-  else
-    {
-      rts_unreachable ("Type construction for rec_linear_lif");
-    }
 }
 
 template<typename T>
@@ -127,10 +123,6 @@ rec_linear_lif<T>::f16_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 	    }
 	  this->m_v_membrane[i] = update;
 	}
-    }
-  else
-    {
-      rts_unreachable ("Type construction for rec_linear_lif");
     }
 }
 
