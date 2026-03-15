@@ -18,13 +18,24 @@ public:
 
   virtual ~layer () = default;
 
-  /* Simulate one timestep for a subbatch of this layer.  */
+  /* Simulate a timestep for neurons [batch_begin, batch_end). */
   virtual std::vector<uint32_t>
-  timestep_batched (const std::vector<uint32_t>&, uint32_t, uint32_t) = 0;
-  /* Many factors influence performance at runtime.  But in the absence of user-
-     provided profile information (COST_UNDEF), a rough estimate can be made by
-     profiling each layer at their own worst case input (see
-     profile_worstcase_batch).  */
+  timestep_batched (const std::vector<uint32_t>&, uint32_t batch_begin,
+		    uint32_t batch_end) = 0;
+
+  /* Simulate a timestep of the entire layer (uses the above).  */
+  std::vector<uint32_t>
+  timestep (const std::vector<uint32_t> &spikes_in);
+
+  /* Simulate a timestep for neurons [batch_begin, batch_end) using input
+     spikes read from M_BUFFER_RD, and write any output spikes to M_BUFFER_WR.
+
+     Used during simulation only.  */
+  void
+  run (uint32_t batch_begin, uint32_t batch_end);
+
+  /* The input that should incurr the highest latency; used for self-profiling
+     in the absence of user-provided profile information (COST_UNDEF).  */
   virtual std::vector<uint32_t>
   worstcase_input () = 0;
 
@@ -36,71 +47,43 @@ public:
   virtual std::string
   str_buffers (uint32_t level=0) const;
 
+  /* E.g. 'LIF'/'RLIF' etc.  */
   const std::string&
-  debug_type () const
-  {
-    return m_debug_type;
-  }
+  debug_type () const { return m_debug_type; }
 
+  /* An identifier that is unique among all layers.  */
   uint32_t
-  debug_id () const
-  {
-    return m_debug_id;
-  }
+  debug_id () const { return m_debug_id; }
 
+  /* The number of input neurons.  */
   uint32_t
-  input_size ()  const
-  {
-    return m_num_inputs;
-  }
+  input_size () const { return m_num_inputs; }
 
+  /* The number of neurons in the layer.  */
   uint32_t
-  output_size () const
-  {
-    return m_num_outputs;
-  }
-  /* A profile based estimate of the cost of running TIMESTEP across an
-     entire batch, or COST_UNDEF if we lack this information.  */
+  output_size () const { return m_num_outputs; }
+
+  /* A profile based estimate of the cost of simulating an entire batch, or
+     COST_UNDEF if we lack this information.  */
   uint64_t
-  batch_cost () const
-  {
-    return m_batch_cost_ns;
-  }
+  batch_cost () const { return m_batch_cost_ns; }
+
+  /* The fixed size of every batch.  */
+  uint32_t
+  batch_size () const { return m_batch_size; }
 
   uint32_t
-  batch_size () const
-  {
-    return m_batch_size;
-  }
-
-  uint32_t
-  total_batches () const
-  {
-    return m_num_outputs / m_batch_size;
-  }
+  total_batches () const { return m_num_outputs / m_batch_size; }
 
   /* If the network parallelises the execution of this layer, it must
      register this information so that we can ensure the execution is
      thread-safe at COUNT threads.  */
   virtual void
-  register_num_sublayers (uint32_t count)
-  {}
+  register_num_sublayers (uint32_t count) {}
 
   /* Reset the state of any variable dynamics.  */
   virtual void
   reset () = 0;
-  /* Simulate one timestep of the entire layer.  */
-  std::vector<uint32_t>
-  timestep (const std::vector<uint32_t> &spikes_in);
-
-  /* Simulate one timestep using input spikes read from M_BUFFER_RD, and write
-     any output spikes to M_BUFFER_WR.
-
-     NOTE: This process generally involves quite a few std::vector push/copy
-     operations.  We ought to reserve this space ahead of time to avoid dynamic
-     allocation within the RT critical path.  */
-  void
-  run (uint32_t batch_begin, uint32_t batch_end);
 
 private:
   std::vector<uint32_t>
