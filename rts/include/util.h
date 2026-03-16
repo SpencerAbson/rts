@@ -49,17 +49,20 @@ handle_timespec_overflow (timespec *ts)
 
 template<typename T>
 inline int
-weights_from_file (std::string path, size_t count, std::vector<T> &out)
+weights_from_file (std::string path, std::streamsize count,
+		   std::vector<T> &out)
 {
   std::ifstream file (path, std::ifstream::binary);
   if (!file.is_open ())
     return -1;
 
-  out.resize (count);
-  file.read ((char *)out.data (), count * sizeof (T));
+  std::streamsize bytes = count * sizeof (T);
 
+  out.resize (count);
+  file.read ((char *)out.data (), bytes);
   file.close ();
-  return 0;
+
+  return file.gcount () == bytes ? 0 : -1;
 }
 
 inline std::mt19937&
