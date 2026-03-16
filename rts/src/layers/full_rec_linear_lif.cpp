@@ -27,6 +27,26 @@ full_rec_linear_lif<T>::full_rec_linear_lif
 }
 
 template<typename T>
+full_rec_linear_lif<T>::full_rec_linear_lif
+		  (std::string path_w, std::string path_b, std::string path_rw,
+		   uint32_t num_inputs, uint32_t num_outputs,
+		   uint32_t batch_size, T beta, T v_thresh, uint64_t batch_cost)
+  : linear_lif<T> (path_w, path_b, num_inputs, num_outputs, batch_size, beta,
+		   v_thresh, batch_cost, "FULL_REC_LLIF"),
+    m_buffer_rec (1, 1)
+{
+  static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
+		 "Invalid type construction for full_rec_linear_lif");
+
+  std::vector<T> vec;
+  /* Read in the recurrent weights.  */
+  int res = weights_from_file (path_rw, num_outputs * num_outputs, vec);
+  assert (!res && "Could not read recurrent weights.");
+
+  m_weights_rec = tensor<T> (vec, {num_outputs, num_outputs});
+}
+
+template<typename T>
 std::vector<uint32_t>
 full_rec_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 					  uint32_t batch_begin, uint32_t batch_end)
