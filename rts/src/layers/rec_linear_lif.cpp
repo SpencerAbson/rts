@@ -23,6 +23,24 @@ rec_linear_lif<T>::rec_linear_lif (tensor<T> weights, std::vector<T> bias,
 }
 
 template<typename T>
+rec_linear_lif<T>::rec_linear_lif (std::string path_w, std::string path_b,
+				   std::string path_rw, uint32_t num_inputs,
+				   uint32_t num_outputs, uint32_t batch_size,
+				   T beta, T v_thresh, uint64_t batch_cost)
+  : linear_lif<T> (path_w, path_b, num_inputs, num_outputs, batch_size, beta,
+		   v_thresh, batch_cost, "REC_LLIF")
+{
+  static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
+		 "Invalid type construction for rec_linear_lif");
+
+  /* Read in the recurrent weights.  */
+  int res = weights_from_file (path_rw, num_outputs, m_weights_rec);
+  assert (!res && "Could not read recurrent weights.");
+
+  assert (m_weights_rec.size () == this->m_weights.shape[1]);
+}
+
+template<typename T>
 void
 rec_linear_lif<T>::f32_neuron_update (uint32_t batch_begin, uint32_t batch_end)
 {
