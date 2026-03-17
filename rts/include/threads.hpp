@@ -1,5 +1,5 @@
-#ifndef RT_THREADS_H_
-#define RT_THREADS_H_
+#ifndef THREADS_H_
+#define THREADS_H_
 
 #include <atomic>
 #include <functional>
@@ -7,12 +7,12 @@
 #include "layers/layer.hpp"
 
 /* pthread_t wrapper.  */
-class rt_thread
+class thread
 {
   static uint32_t m_debug_id_counter;
 public:
-  rt_thread (uint32_t period_us, int priority=80);
-  virtual ~rt_thread () = default;
+  thread (uint32_t period_us);
+  virtual ~thread () = default;
 
   /* RT cyclic task implementation.  */
   virtual void
@@ -37,18 +37,18 @@ public:
   static void*
   runner (void *arg)
   {
-    rt_thread *thread = (rt_thread *)arg;
-    rts_checking_assert (thread->m_barrier != nullptr);
+    thread *worker = (thread *)arg;
+    rts_checking_assert (worker->m_barrier != nullptr);
 
     /* Set state to alive.  */
-    thread->m_alive.store (true, std::memory_order_relaxed);
+    worker->m_alive.store (true, std::memory_order_relaxed);
     /* Sleep until everyone else is ready.  */
-    pthread_barrier_wait (thread->m_barrier);
+    pthread_barrier_wait (worker->m_barrier);
     /* Set the timer.  */
-    clock_gettime (CLOCK_MONOTONIC, &thread->m_timer);
+    clock_gettime (CLOCK_MONOTONIC, &worker->m_timer);
 
     /* Run!  */
-    thread->run ();
+    worker->run ();
     return NULL;
   }
 
@@ -69,14 +69,13 @@ public:
   std::atomic<bool> m_alive {false};
 
   /* The compiler deletes the default CC when the class contains an atomic.  */
-  rt_thread (const rt_thread& other)
+  thread (const thread& other)
   {
     m_timer     = other.m_timer;
     m_barrier   = other.m_barrier;
     m_alive     = other.m_alive.load (std::memory_order_seq_cst);
     m_period_ns = other.m_period_ns;
     m_id        = other.m_id;
-    m_priority  = other.m_priority;
 #ifdef EN_PROFILE_NETWORK
     m_max_latency_ns   = other.m_max_latency_ns;
     m_min_latency_ns   = other.m_min_latency_ns;
@@ -88,9 +87,11 @@ public:
 private:
   /* Copy of network-wide period parameter.  */
   uint64_t m_period_ns;
-  /* pthread API info.  */
+  /* pthread ID.  */
   pthread_t m_id;
-  int m_priority;
+  /* Create a pthread under the SCHED_FIFO policy.  */
+  int
+  create_rt_pthread ();
 protected:
   uint32_t m_debug_id;
 #ifdef EN_PROFILE_NETWORK
@@ -119,11 +120,10 @@ struct sublayer
 };
 
 /* A thread which computes part of the network (see 'sublayer').  */
-class network_rtt : public rt_thread
+class network_thread : public thread
 {
 public:
-  network_rtt (uint32_t period_us, std::vector<sublayer> slayers,
-	       int priority=80);
+  network_thread (uint32_t period_us, std::vector<sublayer> slayers);
   void
   run ();
 
@@ -139,12 +139,12 @@ private:
 
    The input callback may kill the network by writing to it's boolean
    argument.  */
-class input_rtt : public rt_thread
+class input_thread : public thread
 {
 public:
-  input_rtt (uint32_t period_us,
-	     std::function<std::vector<uint32_t> (bool *)> cb,
-	     spikebuffer *buff, int priority=80);
+  using callback_type = std::function<std::vector<uint32_t> (bool *)>;
+
+  input_thread (uint32_t period_us, callback_type cb, spikebuffer *buff);
   void
   run ();
 
@@ -154,17 +154,17 @@ private:
   /* Written to by us only, read by threads running the first layer.  */
   spikebuffer *m_buffer = nullptr;
   /* Callback.  */
-  std::function<std::vector<uint32_t> (bool *)> m_cb;
+  callback_type m_cb;
 };
 
 /* A thread which reads from the buffer M_BUFFER written to by the thread(s)
    handling the output layer of the network and passes it to callback M_CB.  */
-class output_rtt : public rt_thread
+class output_thread : public thread
 {
 public:
-  output_rtt (uint32_t period_us,
-	      std::function<void (const std::vector<uint32_t> &)> cb,
-	      spikebuffer *buff, int priority=80);
+  using callback_type = std::function<void (const std::vector<uint32_t> &)>;
+
+  output_thread (uint32_t period_us, callback_type cb, spikebuffer *buff);
   void
   run ();
 
@@ -174,7 +174,7 @@ private:
   /* Written to by threads running the last layer, read by us only.  */
   spikebuffer *m_buffer = nullptr;
   /* Callback.  */
-  std::function<void (const std::vector<uint32_t>&)> m_cb;
+  callback_type m_cb;
 };
 
-#endif // RT_THREADS_H_
+#endif // THREADS_H_

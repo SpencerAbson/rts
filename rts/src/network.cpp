@@ -2,7 +2,7 @@
 #include <sys/mman.h>
 #include "../include/util.h"
 #include "../include/buffers.hpp"
-#include "../include/rt_threads.hpp"
+#include "../include/threads.hpp"
 #include "../include/network.hpp"
 
 network::network (uint32_t threads, uint32_t period_us)
@@ -37,8 +37,8 @@ network::add_layer (std::unique_ptr<layer> l)
 }
 
 void
-network::initialise (std::function<std::vector<uint32_t> (bool *)> input,
-		     std::function<void (const std::vector<uint32_t>&)> output)
+network::initialise (input_thread::callback_type input_fn,
+		     output_thread::callback_type output_fn)
 {
   assert (!m_initialised && !m_layers.empty ());
   /* Profile any layer whose cost is undefined.  */
@@ -52,16 +52,27 @@ network::initialise (std::function<std::vector<uint32_t> (bool *)> input,
   linear_partitioning ();
 
   /* Create the input thread and keep a copy of its address.  */
-  auto input_thread
-    = std::make_unique<input_rtt> (m_period_us, input,
-				   m_layers.front ()->m_buffer_rd);
-  m_input_thread = input_thread.get ();
-  m_threads.push_back (std::move (input_thread));
+  auto input_worker
+    = std::make_unique<input_thread> (m_period_us, input_fn,
+				      m_layers.front ()->m_buffer_rd);
+  m_input_thread = input_worker.get ();
+  m_threads.push_back (std::move (input_worker));
 
   /* Create the output thread.  */
   m_threads.push_back
-    (std::make_unique<output_rtt> (m_period_us, output,
-				   m_layers.back ()->m_buffer_wr));
+    (std::make_unique<output_thread> (m_period_us, output_fn,
+				      m_layers.back ()->m_buffer_wr));
+
+  /* RT-specific process-wide changes.  */
+#ifdef EN_RT_POLICY
+  /* Lock memory for the entire process.  */
+  int ret = mlockall (MCL_CURRENT | MCL_FUTURE);
+  if (ret)
+    {
+      debug_perror ("mlockall");
+      debug_msg ("Warn: failed to lock memory.\n");
+    }
+#endif
 
   m_initialised = true;
 }
@@ -72,19 +83,9 @@ network::run ()
   assert (m_initialised);
   rts_checking_assert (!m_layers.empty () && m_input_thread != nullptr);
 
-  int ret;
-  pthread_barrier_t barrier;
-  /* Lock memory for the entire process.  */
-  ret = mlockall (MCL_CURRENT | MCL_FUTURE);
-  if (ret)
-    {
-      debug_perror ("mlockall");
-      debug_msg ("Failed to lock memory.\n");
-      return ret;
-    }
-
   /* We'll use a barrier to synchronise the start time of each thread.  */
-  ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
+  pthread_barrier_t barrier;
+  int ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
   if (ret)
     {
       debug_perror ("pthread_barrier_init");
@@ -98,6 +99,7 @@ network::run ()
       ret = thread->start (&barrier);
       if (ret)
 	{
+	  debug_msg ("Failed to create threads.\n");
 	  /* Bail!  */
 	  kill ();
 	  return ret;
@@ -209,7 +211,7 @@ network::linear_partitioning ()
 		}
 	      /* Record the current partition.  */
 	      m_threads.push_back
-		(std::make_unique<network_rtt> (m_period_us, sublayers));
+		(std::make_unique<network_thread> (m_period_us, sublayers));
 	      /* Reset SUBLAYERS and PARITION_COST.  */
 	      sublayers.clear ();
 	      partition_cost = batch_cost - (target - partition_cost);
@@ -236,7 +238,7 @@ network::linear_partitioning ()
     }
   /* Record the final parition.  */
   m_threads.push_back
-    (std::make_unique<network_rtt> (m_period_us, sublayers));
+    (std::make_unique<network_thread> (m_period_us, sublayers));
   /* We know that the final buffer (that which receives data from the last
      layer and is read by the output callback) has exactly one reader.  */
   buffer_prev->set_readers (1);

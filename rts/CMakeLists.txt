@@ -7,7 +7,7 @@ project(rts)
 add_library(rts STATIC
 	src/network.cpp
 	src/tensor.cpp
-	src/rt_threads.cpp
+	src/threads.cpp
 	src/buffers.cpp
 	src/layers/layer.cpp
 	src/layers/linear_lif.cpp

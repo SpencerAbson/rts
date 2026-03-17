@@ -2,13 +2,13 @@
 #define  NETWORK_H
 
 #include <functional>
-#include "rt_threads.hpp"
+#include "threads.hpp"
 #include "layers/layer.hpp"
 
 class network
 {
 public:
-  network (uint32_t threads=2, uint32_t period_us=1000);
+  network (uint32_t threads=1, uint32_t period_us=1000);
   ~network ();
 
   /* Add a layer (in sequence) to the network.  */
@@ -16,8 +16,8 @@ public:
   add_layer (std::unique_ptr<layer> l);
   /* Distribute the workload, set input/output callbacks, etc.  */
   void
-  initialise (std::function<std::vector<uint32_t> (bool *)> input,
-	      std::function<void (const std::vector<uint32_t>&)> output);
+  initialise (input_thread::callback_type input_fn,
+	      output_thread::callback_type output_fn);
   /* Run an initialised network.  */
   int
   run ();
@@ -58,8 +58,8 @@ private:
   std::vector<std::unique_ptr<layer>> m_layers;
 
   /* RT thread objects.  */
-  input_rtt *m_input_thread = nullptr;
-  std::vector<std::unique_ptr<rt_thread>> m_threads;
+  input_thread *m_input_thread = nullptr;
+  std::vector<std::unique_ptr<thread>> m_threads;
 
   bool m_initialised = false;
 };
