@@ -56,13 +56,13 @@ weights_from_file (std::string path, std::streamsize count,
   if (!file.is_open ())
     return -1;
 
-  std::streamsize bytes = count * sizeof (T);
-
+  int ret = 0;
   out.resize (count);
-  file.read ((char *)out.data (), bytes);
-  file.close ();
+  if (!file.read ((char *)out.data (), count * sizeof (T)))
+    ret = -1;
 
-  return file.gcount () == bytes ? 0 : -1;
+  file.close ();
+  return ret;
 }
 
 inline std::mt19937&
