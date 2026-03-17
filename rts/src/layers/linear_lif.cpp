@@ -36,7 +36,7 @@ linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
 		 "Invalid type construction for linear_lif");
 
   /* Raed in the bias.  */
-  int res = weights_from_file (path_bias, num_inputs, m_bias);
+  int res = weights_from_file (path_bias, num_outputs, m_bias);
   assert (!res && "Could not read bias.");
 
   std::vector<T> vec;
