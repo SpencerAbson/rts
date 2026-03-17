@@ -28,6 +28,7 @@ linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
 			   uint32_t batch_size, T beta, T v_thresh,
 			   uint64_t batch_cost, std::string type)
   : layer (num_inputs, num_outputs, batch_size, batch_cost, type),
+    m_weights (path_weights, {num_inputs, num_outputs}),
     m_beta (beta),
     m_v_thresh (v_thresh),
     m_v_membrane (num_outputs)
@@ -35,16 +36,8 @@ linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
   static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
 		 "Invalid type construction for linear_lif");
 
-  /* Raed in the bias.  */
   int res = weights_from_file (path_bias, num_outputs, m_bias);
-  assert (!res && "Could not read bias.");
-
-  std::vector<T> vec;
-  /* Likewise for the weights.  */
-  res = weights_from_file (path_weights, num_inputs * num_outputs, vec);
-  assert (!res && "Could not read weights.");
-
-  m_weights = tensor<T> (vec, {num_inputs, num_outputs});
+  assert (!res && "Failed to read bias.");
 }
 
 template<typename T>

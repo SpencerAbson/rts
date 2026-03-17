@@ -33,11 +33,8 @@ rec_linear_lif<T>::rec_linear_lif (std::string path_w, std::string path_b,
   static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
 		 "Invalid type construction for rec_linear_lif");
 
-  /* Read in the recurrent weights.  */
   int res = weights_from_file (path_rw, num_outputs, m_weights_rec);
-  assert (!res && "Could not read recurrent weights.");
-
-  assert (m_weights_rec.size () == this->m_weights.shape[1]);
+  assert (!res && "Failed to read recurrent weights.");
 }
 
 template<typename T>
