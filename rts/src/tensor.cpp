@@ -2,27 +2,31 @@
 #include <arm_neon.h>
 #include "../include/tensor.hpp"
 
+
 template<typename T>
-tensor<T>::tensor (std::vector<T> data, std::vector<uint32_t> shape)
+tensor<T>::tensor (std::vector<T> data, std::vector<tensor<T>::size_type> shape)
   : vec (data), shape (shape), stride (shape.size ())
 {
-  rts_checking_assert (std::reduce (shape.begin (), shape.end (), 1,
+  rts_checking_assert (std::reduce (shape.begin (), shape.end (),
+				    tensor<T>::size_type{1},
 				    std::multiplies ()) == vec.size ());
   init_stride (0);
 }
 
 template<typename T>
-tensor<T>::tensor (std::vector<T> data, std::initializer_list<uint32_t> shape)
+tensor<T>::tensor (std::vector<T> data,
+		   std::initializer_list<tensor<T>::size_type> shape)
   : vec (data), shape (shape), stride (shape.size ())
 {
-  rts_checking_assert (std::reduce (shape.begin (),shape.end (), 1,
+  rts_checking_assert (std::reduce (shape.begin (),shape.end (),
+				    tensor<T>::size_type{1},
 				    std::multiplies ()) == vec.size ());
   init_stride (0);
 }
 
 template<typename T>
-tensor<T>::tensor (std::vector<uint32_t> shape, T init)
-  : vec (std::reduce (shape.begin (), shape.end (), 1,
+tensor<T>::tensor (std::vector<tensor<T>::size_type> shape, T init)
+  : vec (std::reduce (shape.begin (), shape.end (), tensor<T>::size_type{1},
 		      std::multiplies ()), init), shape (shape),
     stride (shape.size ())
 {
@@ -30,20 +34,33 @@ tensor<T>::tensor (std::vector<uint32_t> shape, T init)
 }
 
 template<typename T>
-tensor<T>::tensor (std::initializer_list<uint32_t> shape, T init)
-  : vec (std::reduce (shape.begin (), shape.end (), 1, std::multiplies ()),
+tensor<T>::tensor (std::initializer_list<tensor<T>::size_type> shape, T init)
+  : vec (std::reduce (shape.begin (), shape.end (), tensor<T>::size_type{1},
+		      std::multiplies ()),
 	 init), shape (shape), stride (shape.size ())
 {
   init_stride (0);
 }
 
 template<typename T>
-uint32_t
-tensor<T>::init_stride (uint32_t i)
+void
+tensor<T>::reshape (std::initializer_list<tensor<T>::size_type> new_shape)
+{
+  rts_checking_assert (std::reduce (new_shape.begin (), new_shape.end (),
+				    tensor<T>::size_type{1},
+				    std::multiplies ()) == vec.size ());
+  shape = new_shape;
+  stride.resize (shape.size ());
+  init_stride (0);
+}
+
+template<typename T>
+tensor<T>::size_type
+tensor<T>::init_stride (tensor<T>::size_type i)
 {
   rts_checking_assert (i < shape.size ());
 
-  uint32_t stride_i;
+  tensor<T>::size_type stride_i;
   if (i == (shape.size () - 1))
     stride_i = 1;
   else
