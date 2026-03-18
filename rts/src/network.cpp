@@ -226,15 +226,12 @@ network::linear_partitioning ()
       /* Set BUFFER_RD for layer_i to BUFFER_WR of layer_{i-1}, but first,
 	 tell that buffer how many readers it has.  */
       buffer_prev->set_readers (l_slayers);
-      layer->m_buffer_rd = buffer_prev;
+      layer->set_buffer_rd (buffer_prev);
 
       /* Update BUFFER_PREV to that which this layer will write to.  */
       buffer_prev = new spikebuffer ();
       buffer_prev->set_writers (l_slayers);
-      layer->m_buffer_wr = buffer_prev;
-
-      /* Tell the layer about what we've done.  */
-      layer->register_num_sublayers (l_slayers);
+      layer->set_buffer_wr (buffer_prev);
     }
   /* Record the final parition.  */
   m_threads.push_back

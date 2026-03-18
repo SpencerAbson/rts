@@ -75,11 +75,11 @@ public:
   uint32_t
   total_batches () const { return m_num_outputs / m_batch_size; }
 
-  /* If the network parallelises the execution of this layer, it must
-     register this information so that we can ensure the execution is
-     thread-safe at COUNT threads.  */
   virtual void
-  register_num_sublayers (uint32_t count) {}
+  set_buffer_rd (spikebuffer *buff) { m_buffer_rd = buff; }
+
+  virtual void
+  set_buffer_wr (spikebuffer *buff) { m_buffer_wr = buff; }
 
   /* Reset the state of any variable dynamics.  */
   virtual void

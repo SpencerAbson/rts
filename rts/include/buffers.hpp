@@ -24,9 +24,15 @@ public:
   spikebuffer (tv_mechanism mech=DROP);
 
   void
-  set_readers (uint32_t readers);
+  set_readers (uint32_t readers) { m_readers = readers; }
   void
-  set_writers (uint32_t writers);
+  set_writers (uint32_t writers) { m_writers = writers; }
+
+  uint32_t
+  readers () const { return m_readers; }
+  uint32_t
+  writers () const { return m_writers; }
+
   /* To avoid dynamic memory allocation on the RT critical path.  */
   void
   reserve (std::vector<uint32_t>::size_type size);

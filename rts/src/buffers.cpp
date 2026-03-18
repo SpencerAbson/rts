@@ -17,18 +17,6 @@ spikebuffer::spikebuffer (tv_mechanism mech)
 }
 
 void
-spikebuffer::set_readers (uint32_t readers)
-{
-  m_readers = readers;
-}
-
-void
-spikebuffer::set_writers (uint32_t writers)
-{
-  m_writers = writers;
-}
-
-void
 spikebuffer::reserve (std::vector<uint32_t>::size_type size)
 {
   m_buff_a.reserve (size);

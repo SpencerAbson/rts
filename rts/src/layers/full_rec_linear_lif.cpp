@@ -15,8 +15,7 @@ full_rec_linear_lif<T>::full_rec_linear_lif
 		   "FULL_REC_LLIF"),
     m_weights_rec (w_rec),
     /* By default, we assume that there is only one thread reading and writing
-       the recurrent spikes.  If the network changes this it must call
-       register_num_sublayers.  */
+       the recurrent spikes.  */
     m_buffer_rec (1, 1)
 {
   static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
@@ -84,10 +83,15 @@ full_rec_linear_lif<T>::str_buffers (uint32_t level) const
 
 template<typename T>
 void
-full_rec_linear_lif<T>::register_num_sublayers (uint32_t count)
+full_rec_linear_lif<T>::set_buffer_wr (spikebuffer *buff)
 {
-  m_buffer_rec.set_readers (count);
-  m_buffer_rec.set_writers (count);
+  /* The number of writers to this buffer is the number of sublayers
+     the network has split this layer into.  We need to forward this
+     information to M_BUFFER_REC.  */
+  m_buffer_rec.set_readers (buff->writers ());
+  m_buffer_rec.set_writers (buff->writers ());
+
+  this->m_buffer_wr = buff;
 }
 
 template<typename T>

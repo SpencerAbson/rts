@@ -26,7 +26,7 @@ public:
   str_buffers (uint32_t level=0) const override;
 
   void
-  register_num_sublayers (uint32_t count) override;
+  set_buffer_wr (spikebuffer *buff) override;
 
   void
   reset ();
