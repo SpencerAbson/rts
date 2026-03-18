@@ -16,7 +16,7 @@ full_rec_linear_lif<T>::full_rec_linear_lif
     m_weights_rec (w_rec),
     /* By default, we assume that there is only one thread reading and writing
        the recurrent spikes.  */
-    m_buffer_rec (1, 1)
+    m_buffer_rec (this->m_num_outputs, 1, 1)
 {
   static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
 		 "Invalid type construction for full_rec_linear_lif");
@@ -33,38 +33,64 @@ full_rec_linear_lif<T>::full_rec_linear_lif
   : linear_lif<T> (path_w, path_b, num_inputs, num_outputs, batch_size, beta,
 		   v_thresh, batch_cost, "FULL_REC_LLIF"),
     m_weights_rec (path_rw, {num_outputs, num_outputs}),
-    m_buffer_rec (1, 1)
+    m_buffer_rec (num_outputs, 1, 1)
 {
   static_assert (std::is_same_v<T, float> || std::is_same_v<T, float16_t>,
 		 "Invalid type construction for full_rec_linear_lif");
 }
 
 template<typename T>
-std::vector<uint32_t>
+void
+full_rec_linear_lif<T>::reset ()
+{
+  /* Reset membrane potentials to zero.  */
+  std::fill (this->m_v_membrane.begin (), this->m_v_membrane.end (), (T)0);
+  /* Reset the recurrent spike buffer.  */
+  m_buffer_rec.reset ();
+}
+
+template<typename T>
+void
 full_rec_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 					  uint32_t batch_begin, uint32_t batch_end)
 {
   rts_checking_assert (batch_begin < batch_end);
-  std::vector<uint32_t> spike_out;
 
   /* Update the neurons w.r.t the LIF update rule.  */
   this->neuron_update (batch_begin, batch_end);
   /* Handle the linear spiking input.  */
   this->spike_prop (spikes_in, this->m_weights, batch_begin, batch_end);
+
   /* Handle the recurrent spiking input.  */
-  this->spike_prop (m_buffer_rec.read (), this->m_weights_rec, batch_begin,
-		    batch_end);
+  const std::vector<uint32_t> *rec_spikes = m_buffer_rec.acquire_read ();
+  if (rec_spikes)
+    this->spike_prop (*rec_spikes, this->m_weights_rec, batch_begin,
+		       batch_end);
+  m_buffer_rec.release_read ();
+}
 
-  /* Push the spiking neurons to SPIKE_OUT.  */
-  for (uint32_t i = batch_begin; i < batch_end; i++)
+template<typename T>
+void
+full_rec_linear_lif<T>::poll_spiking_output (std::vector<uint32_t> &spikes_out,
+					     uint32_t batch_begin,
+					     uint32_t batch_end)
+{
+  std::vector<uint32_t> *ptr = m_buffer_rec.acquire_write ();
+  if (ptr)
     {
-      if (this->m_v_membrane[i] > this->m_v_thresh)
-	spike_out.push_back (i);
+      for (uint32_t i = batch_begin; i < batch_end; i++)
+	{
+	  spikes_out.push_back (i);
+	  ptr->push_back (i);
+	}
     }
-  /* Write SPIKE_OUT to the recurrent buffer.  */
-  m_buffer_rec.write (spike_out);
+  else
+    {
+      for (uint32_t i = batch_begin; i < batch_end; i++)
+	  spikes_out.push_back (i);
+    }
 
-  return spike_out;
+  m_buffer_rec.release_write ();
 }
 
 template<typename T>
@@ -96,27 +122,21 @@ full_rec_linear_lif<T>::set_buffer_wr (spikebuffer *buff)
 
 template<typename T>
 void
-full_rec_linear_lif<T>::reset ()
-{
-  /* Reset membrane potentials to zero.  */
-  std::fill (this->m_v_membrane.begin (), this->m_v_membrane.end (), (T)0);
-  /* Reset the recurrent spike buffer.  */
-  m_buffer_rec.reset ();
-}
-
-template<typename T>
-void
 full_rec_linear_lif<T>::profile_worstcase_batch ()
 {
   timespec start, end;
-  std::vector<uint32_t> spikes_rec;
+  std::vector<uint32_t>* spikes_rec;
   std::vector<uint32_t> input = this->worstcase_input ();
 
   /* We must also consider recurrent spikes here, so fill the
      recurrent spike buffer with a spike from each neuron.  */
+  spikes_rec = m_buffer_rec.acquire_write ();
+  rts_checking_assert (spikes_rec != nullptr);
+
   for (uint32_t i = 0; i < this->m_num_outputs; i++)
-    spikes_rec.push_back (i);
-  m_buffer_rec.write (spikes_rec);
+    spikes_rec->push_back (i);
+
+  m_buffer_rec.release_write ();
 
   /* Measure the execution time.  */
   clock_gettime (CLOCK_MONOTONIC, &start);

@@ -18,14 +18,18 @@ public:
 	      std::string type="LLIF");
 
   std::vector<uint32_t>
-  timestep_batched (const std::vector<uint32_t> &spikes_in,
-		    uint32_t batch_begin, uint32_t batch_end);
-
-  std::vector<uint32_t>
   worstcase_input ();
 
   void
   reset ();
+
+  void
+  timestep_batched (const std::vector<uint32_t> &spikes_in,
+		    uint32_t batch_begin, uint32_t batch_end);
+
+  void
+  poll_spiking_output (std::vector<uint32_t> &spikes_out,
+		       uint32_t batch_begin, uint32_t batch_end);
 
 protected:
   /* Convenience type-checking wrapper over the below.  */

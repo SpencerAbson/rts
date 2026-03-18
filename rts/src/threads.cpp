@@ -183,6 +183,8 @@ input_thread::input_thread (uint32_t period_us, callback_type cb,
 void
 input_thread::run ()
 {
+  std::vector<uint32_t> *spikes_wr;
+
   bool killed = false;
   while (true)
     {
@@ -190,6 +192,7 @@ input_thread::run ()
 	/* We've been killed by another thread.  */
 	break;
 
+      std::vector<uint32_t> temp = m_cb (&killed);
       if (killed)
 	/* We've been killed locally by M_CB.  */
 	{
@@ -198,8 +201,11 @@ input_thread::run ()
 	  break;
 	}
 
-      /* Continue working.  */
-      m_buffer->write (m_cb (&killed));
+      spikes_wr = m_buffer->acquire_write ();
+      if (spikes_wr)
+	spikes_wr->assign (temp.begin (), temp.end ());
+
+      m_buffer->release_write ();
       complete_period ();
     }
 }
@@ -221,9 +227,14 @@ output_thread::output_thread (uint32_t period_us, callback_type cb,
 void
 output_thread::run ()
 {
+  const std::vector<uint32_t> *spikes;
   while (m_alive.load (std::memory_order_acquire))
     {
-      m_cb (m_buffer->read ());
+      spikes = m_buffer->acquire_read ();
+      if (spikes)
+	m_cb (*spikes);
+
+      m_buffer->release_read ();
       complete_period ();
     }
 }

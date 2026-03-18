@@ -18,18 +18,22 @@ public:
 		       uint32_t num_outputs, uint32_t batch_size, T beta=(T)0.8,
 		       T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF);
 
-  std::vector<uint32_t>
+  void
+  reset ();
+
+  void
   timestep_batched (const std::vector<uint32_t> &spikes_in,
 		    uint32_t batch_begin, uint32_t batch_end);
+
+  void
+  poll_spiking_output (std::vector<uint32_t> &spikes_out,
+		       uint32_t batch_begin, uint32_t batch_end);
 
   std::string
   str_buffers (uint32_t level=0) const override;
 
   void
   set_buffer_wr (spikebuffer *buff) override;
-
-  void
-  reset ();
 
   void
   profile_worstcase_batch () override;

@@ -3,13 +3,13 @@
 
 #include <atomic>
 #include <vector>
+#include <pthread.h>
 
 /* What to do in the case of a timing violation.  */
 enum tv_mechanism
 {
   IGNORE, /* Nothing.  */
   DROP,   /* Drop the current read/write.  */
-  WAIT,   /* Wait for stability.  */
   FATAL   /* Exit the process.  */
 };
 
@@ -20,37 +20,39 @@ class spikebuffer
 {
   static uint32_t m_debug_id_counter;
 public:
-  spikebuffer (uint32_t writers, uint32_t readers, tv_mechanism mech=DROP);
-  spikebuffer (tv_mechanism mech=DROP);
+  spikebuffer (std::vector<uint32_t>::size_type size,
+	       tv_mechanism tv_mech=DROP);
 
-  void
-  set_readers (uint32_t readers) { m_readers = readers; }
-  void
-  set_writers (uint32_t writers) { m_writers = writers; }
+  spikebuffer (std::vector<uint32_t>::size_type size, uint32_t readers,
+	       uint32_t writers, tv_mechanism tv_mech=DROP);
+
+  ~spikebuffer ();
 
   uint32_t
-  readers () const { return m_readers; }
+  debug_id () const;
+
   uint32_t
-  writers () const { return m_writers; }
-
-  /* To avoid dynamic memory allocation on the RT critical path.  */
-  void
-  reserve (std::vector<uint32_t>::size_type size);
+  readers () const;
+  uint32_t
+  writers () const;
 
   void
-  write (const std::vector<uint32_t> &data_in);
-  std::vector<uint32_t>
-  read ();
+  set_readers (uint32_t readers);
+  void
+  set_writers (uint32_t writers);
 
-  /* Reset the state to that after instantiation.  */
+  const std::vector<uint32_t> *
+  acquire_read ();
+  void
+  release_read ();
+
+  std::vector<uint32_t> *
+  acquire_write ();
+  void
+  release_write ();
+
   void
   reset ();
-
-  uint32_t
-  debug_id () const
-  {
-    return m_debug_id;
-  }
 
 private:
   void
@@ -58,15 +60,9 @@ private:
   void
   tock ();
 
-  /* Sleep wait until a stable state is reached.  Return without releasing
-     the lock.  */
-  void
-  wait_until_stable_acquire ();
-
-  /* Handle the timing violation w.r.t M_TV_MECH.  Return true if we
-     should continue with the operation, or false otherwise.  */
   bool
-  handle_timing_violation ();
+  handle_read_tv ();
+  std::vector<uint32_t> *handle_write_tv ();
 
   uint32_t m_writers = 0;
   uint32_t m_readers = 0;
@@ -82,10 +78,12 @@ private:
   uint32_t m_written_b = 0;
 
   bool m_tick = false;
-  std::atomic<bool> m_lock {false};
 
   tv_mechanism m_tv_mech;
+
+  pthread_spinlock_t m_lock;
   uint32_t m_debug_id;
 };
+
 
 #endif // BUFFERS_H_

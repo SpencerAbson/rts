@@ -42,25 +42,53 @@ linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
 
 template<typename T>
 std::vector<uint32_t>
+linear_lif<T>::worstcase_input ()
+{
+  /* Worst case here is when SPIKES_IN contains all of
+     0...(M_NUM_INPUTS-1).  */
+  std::vector<uint32_t> spike_in;
+  for (uint32_t i = 0; i < m_num_inputs; i++)
+    spike_in.push_back (i);
+
+  /* Shuffle this to (hopefully) avoid an optimistically linear
+     access pattern.  */
+  std::shuffle (spike_in.begin (), spike_in.end (), mersenne_twister ());
+
+  return spike_in;
+}
+
+template<typename T>
+void
+linear_lif<T>::reset ()
+{
+  /* Reset membrane potentials to zero.  */
+  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
+}
+
+template<typename T>
+void
 linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in,
 				 uint32_t batch_begin, uint32_t batch_end)
 {
   rts_checking_assert (batch_begin < batch_end);
-  std::vector<uint32_t> spike_out;
 
   /* Update the neurons w.r.t the LIF update rule.  */
   neuron_update (batch_begin, batch_end);
   /* Handle the spiking input.  */
   spike_prop (spikes_in, m_weights, batch_begin, batch_end);
+}
 
-  /* Push the spiking neurons to SPIKE_OUT.  */
+template<typename T>
+void
+linear_lif<T>::poll_spiking_output (std::vector<uint32_t> &spikes_out,
+				    uint32_t batch_begin, uint32_t batch_end)
+{
+  /* Push the spiking neurons to SPIKES_OUT.  */
   for (uint32_t i = batch_begin; i < batch_end; i++)
     {
       if (m_v_membrane[i] > m_v_thresh)
-	  spike_out.push_back (i);
+	  spikes_out.push_back (i);
     }
-
-  return spike_out;
 }
 
 template<typename T>
@@ -412,31 +440,6 @@ linear_lif<T>::f16_spike_prop (const std::vector<uint32_t> &spikes_in,
 	    m_v_membrane[j] += weights_in.vec[next_offset + j];
 	}
     }
-}
-
-template<typename T>
-std::vector<uint32_t>
-linear_lif<T>::worstcase_input ()
-{
-  /* Worst case here is when SPIKES_IN contains all of
-     0...(M_NUM_INPUTS-1).  */
-  std::vector<uint32_t> spike_in;
-  for (uint32_t i = 0; i < m_num_inputs; i++)
-    spike_in.push_back (i);
-
-  /* Shuffle this to (hopefully) avoid an optimistically linear
-     access pattern.  */
-  std::shuffle (spike_in.begin (), spike_in.end (), mersenne_twister ());
-
-  return spike_in;
-}
-
-template<typename T>
-void
-linear_lif<T>::reset ()
-{
-  /* Reset membrane potentials to zero.  */
-  std::fill (m_v_membrane.begin (), m_v_membrane.end (), (T)0);
 }
 
 template class linear_lif<float32_t>;

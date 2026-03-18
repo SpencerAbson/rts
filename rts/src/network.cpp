@@ -171,13 +171,14 @@ network::linear_partitioning ()
   /* Calculate the target load for each partition.  */
   uint64_t target = 0;
   for (const auto &layer : m_layers)
-    target += layer->batch_cost () * layer->total_batches ();
+    target += layer->batch_cost ()
+      * (layer->output_size () / layer->batch_size ());
   target /= m_num_threads;
 
   /* We'll allocate buffers as we go.  We know that the first buffer (that
      which receives data from the callback input and is read by the first
      layer) has exactly one writer.  */
-  spikebuffer *buffer_prev = new spikebuffer ();
+  spikebuffer *buffer_prev = new spikebuffer (m_layers[0]->input_size ());
   buffer_prev->set_writers (1);
 
   /* Cost for current partition.  */
@@ -229,7 +230,7 @@ network::linear_partitioning ()
       layer->set_buffer_rd (buffer_prev);
 
       /* Update BUFFER_PREV to that which this layer will write to.  */
-      buffer_prev = new spikebuffer ();
+      buffer_prev = new spikebuffer (layer->output_size ());
       buffer_prev->set_writers (l_slayers);
       layer->set_buffer_wr (buffer_prev);
     }
@@ -270,7 +271,7 @@ network::inference (std::vector<uint32_t> spikes)
   clock_gettime (CLOCK_MONOTONIC, &start);
 #endif
   for (auto &layer : m_layers)
-    spikes = layer->timestep (spikes);
+    spikes = layer->forward (spikes);
 
 #ifdef EN_PROFILE_NETWORK
   clock_gettime (CLOCK_MONOTONIC, &end);
