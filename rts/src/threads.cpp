@@ -12,10 +12,10 @@ thread::thread (uint32_t period_us)
 }
 
 int
-thread::start (pthread_barrier_t *barrier)
+thread::start (pthread_barrier_t *barrier, sem_t *sema)
 {
-  /* Copy the barrier over.  */
   m_barrier = barrier;
+  m_notify_exit = sema;
 #ifdef EN_RT_POLICY
   return create_rt_pthread ();
 #else
@@ -62,9 +62,24 @@ thread::complete_period ()
   m_total_latency_ns += latency;
   m_total_cycles++;
 #endif
+  timespec now;
+
+  /* We should sleep until...  */
   m_timer.tv_nsec += m_period_ns;
   handle_timespec_overflow (&m_timer);
 
+  /* If this value is earlier than the current time, we have a
+     timing violation.  */
+  clock_gettime (CLOCK_MONOTONIC, &now);
+  if (time_is_later (now, m_timer))
+    {
+      debug_msg ("Fatal timing violation\n");
+      /* Notify the main thread of our exit.  */
+      sem_post (m_notify_exit);
+      pthread_exit (NULL);
+    }
+
+  /* Otherwise, sleep until the next cycle.  */
   clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
 }
 
@@ -201,11 +216,11 @@ input_thread::run ()
 	  break;
 	}
 
+      /* Continue as normal.  */
       spikes_wr = m_buffer->acquire_write ();
-      if (spikes_wr)
-	spikes_wr->assign (temp.begin (), temp.end ());
-
+      spikes_wr->assign (temp.begin (), temp.end ());
       m_buffer->release_write ();
+
       complete_period ();
     }
 }
@@ -227,14 +242,11 @@ output_thread::output_thread (uint32_t period_us, callback_type cb,
 void
 output_thread::run ()
 {
-  const std::vector<uint32_t> *spikes;
   while (m_alive.load (std::memory_order_acquire))
     {
-      spikes = m_buffer->acquire_read ();
-      if (spikes)
-	m_cb (*spikes);
-
+      m_cb (*m_buffer->acquire_read ());
       m_buffer->release_read ();
+
       complete_period ();
     }
 }

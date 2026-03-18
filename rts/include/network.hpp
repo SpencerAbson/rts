@@ -50,15 +50,13 @@ private:
   void
   linear_partitioning ();
 
-  /* The number of threads used to parallelise the network.  */
+  /* The number of threads to distribute the workload across.  */
   uint32_t m_num_threads;
   /* RT cyclic period.  */
   uint32_t m_period_us;
   /* The layers of a sequential spiking neural network (in order).  */
   std::vector<std::unique_ptr<layer>> m_layers;
-
-  /* RT thread objects.  */
-  input_thread *m_input_thread = nullptr;
+  /* The threads that run this simulation (incl. input/output threads).  */
   std::vector<std::unique_ptr<thread>> m_threads;
 
   bool m_initialised = false;

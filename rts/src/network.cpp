@@ -1,5 +1,6 @@
 #include <memory>
 #include <sys/mman.h>
+ #include <semaphore.h>
 #include "../include/util.h"
 #include "../include/buffers.hpp"
 #include "../include/threads.hpp"
@@ -51,13 +52,10 @@ network::initialise (input_thread::callback_type input_fn,
   /* Distribute the layers across M_NUM_THREADS partitions.  */
   linear_partitioning ();
 
-  /* Create the input thread and keep a copy of its address.  */
-  auto input_worker
-    = std::make_unique<input_thread> (m_period_us, input_fn,
-				      m_layers.front ()->m_buffer_rd);
-  m_input_thread = input_worker.get ();
-  m_threads.push_back (std::move (input_worker));
-
+  /* Create the input thread.  */
+  m_threads.push_back
+    (std::make_unique<input_thread> (m_period_us, input_fn,
+				     m_layers.front ()->m_buffer_rd));
   /* Create the output thread.  */
   m_threads.push_back
     (std::make_unique<output_thread> (m_period_us, output_fn,
@@ -81,41 +79,65 @@ int
 network::run ()
 {
   assert (m_initialised);
-  rts_checking_assert (!m_layers.empty () && m_input_thread != nullptr);
+  rts_checking_assert (!m_layers.empty ());
 
+  int ret;
   /* We'll use a barrier to synchronise the start time of each thread.  */
   pthread_barrier_t barrier;
-  int ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
+  ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
   if (ret)
     {
       debug_perror ("pthread_barrier_init");
-      debug_msg ("Failed to create synchonisation barrier.\n");
+      debug_msg ("Failed to create notification semaphore.\n");
+      return ret;
+    }
+
+  /* Any thread may die at any time during the simulation; it may run out of
+     work (e.g. the input thread) or experience a fatal error such as a timing
+     violation.
+
+     The loss of any thread is fatal for the whole simulation, so we should be
+     notified when this happens and exit gracefully.  To do that, we'll use a
+     post/wait semaphore pattern.  */
+  sem_t exit_notification;
+  ret = sem_init (&exit_notification, 0, 0);
+  if (ret)
+    {
+      debug_perror ("pthread_barrier_init");
+      debug_msg ("Failed to notification semaphore.\n");
+
+      /* Cleanup what we've created thus far.  */
+      pthread_barrier_destroy (&barrier);
+
       return ret;
     }
 
   /* Create and run all threads.  */
   for (auto &thread : m_threads)
     {
-      ret = thread->start (&barrier);
+      ret = thread->start (&barrier, &exit_notification);
       if (ret)
 	{
 	  debug_msg ("Failed to create threads.\n");
-	  /* Bail!  */
+	  /* Kill anything that succeeded in starting.  */
 	  kill ();
+
+	  /* Cleanup what we've created thus far.  */
+	  sem_destroy (&exit_notification);
+	  pthread_barrier_destroy (&barrier);
+
 	  return ret;
 	}
     }
 
-  /* Wait for the input thread to die, then kill everything else.  */
-  m_input_thread->join ();
+  /* As discussed above, wait for any thread to die then kill and
+     join all threads.  */
+  sem_wait (&exit_notification);
   kill ();
 
-  ret = pthread_barrier_destroy (&barrier);
-  if (ret)
-    {
-      debug_perror ("pthread_barrier_destroy");
-      debug_msg ("Failed to destroy synchonisation barrier.\n");
-    }
+  /* Cleanup.  */
+  sem_destroy (&exit_notification);
+  pthread_barrier_destroy (&barrier);
 
 #ifdef EN_PROFILE_NETWORK
   std::string stats = "";

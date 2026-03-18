@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <functional>
+#include <semaphore.h>
 #include "buffers.hpp"
 #include "layers/layer.hpp"
 
@@ -25,7 +26,7 @@ public:
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
   int
-  start (pthread_barrier_t *barrier);
+  start (pthread_barrier_t *barrier, sem_t *sema);
   /* Wrapper on pthread_join.  */
   int
   join ();
@@ -49,7 +50,10 @@ public:
 
     /* Run!  */
     worker->run ();
-    return NULL;
+
+    /* Notify the main thread of our exit.  */
+    sem_post (worker->m_notify_exit);
+    pthread_exit (NULL);
   }
 
   /* Sleep until we reach time T'=T+period.  TODO: warn if current time
@@ -65,6 +69,9 @@ public:
   timespec m_timer;
   /* To synchronise with everyone else at the start.  */
   pthread_barrier_t *m_barrier = nullptr;
+  /* To pass the exiting signal back to the main thread.  */
+  sem_t *m_notify_exit;
+
   /* Killswitch.  */
   std::atomic<bool> m_alive {false};
 

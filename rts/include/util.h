@@ -73,4 +73,14 @@ mersenne_twister ()
   return g;
 }
 
+inline int
+time_is_later (const timespec &t1, const timespec &t2)
+{
+  if (t1.tv_sec > t2.tv_sec)
+    return 1;
+  if (t1.tv_sec < t2.tv_sec)
+    return 0;
+  return t1.tv_nsec > t2.tv_nsec;
+}
+
 #endif // UTIL_H_

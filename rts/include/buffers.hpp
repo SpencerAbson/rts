@@ -5,26 +5,17 @@
 #include <vector>
 #include <pthread.h>
 
-/* What to do in the case of a timing violation.  */
-enum tv_mechanism
-{
-  IGNORE, /* Nothing.  */
-  DROP,   /* Drop the current read/write.  */
-  FATAL   /* Exit the process.  */
-};
 
 /* A multi-producer multi-consumer double buffer to be set between successive
-   layers in a network during simulation.  Built into this buffer is the logic
-   required to detect meaningful timing violations.  */
+   layers in a network during simulation.  */
 class spikebuffer
 {
   static uint32_t m_debug_id_counter;
 public:
-  spikebuffer (std::vector<uint32_t>::size_type size,
-	       tv_mechanism tv_mech=DROP);
+  spikebuffer (std::vector<uint32_t>::size_type size);
 
   spikebuffer (std::vector<uint32_t>::size_type size, uint32_t readers,
-	       uint32_t writers, tv_mechanism tv_mech=DROP);
+	       uint32_t writers);
 
   ~spikebuffer ();
 
@@ -60,10 +51,6 @@ private:
   void
   tock ();
 
-  bool
-  handle_read_tv ();
-  std::vector<uint32_t> *handle_write_tv ();
-
   uint32_t m_writers = 0;
   uint32_t m_readers = 0;
 
@@ -77,9 +64,9 @@ private:
   uint32_t m_read_b    = 0;
   uint32_t m_written_b = 0;
 
-  bool m_tick = false;
+  uint32_t m_active_rd = 0;
 
-  tv_mechanism m_tv_mech;
+  bool m_tick = false;
 
   pthread_spinlock_t m_lock;
   uint32_t m_debug_id;

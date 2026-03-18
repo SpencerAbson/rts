@@ -87,7 +87,7 @@ linear_lif<T>::poll_spiking_output (std::vector<uint32_t> &spikes_out,
   for (uint32_t i = batch_begin; i < batch_end; i++)
     {
       if (m_v_membrane[i] > m_v_thresh)
-	  spikes_out.push_back (i);
+	spikes_out.push_back (i);
     }
 }
 

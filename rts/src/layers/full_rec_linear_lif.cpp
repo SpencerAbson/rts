@@ -63,9 +63,8 @@ full_rec_linear_lif<T>::timestep_batched (const std::vector<uint32_t> &spikes_in
 
   /* Handle the recurrent spiking input.  */
   const std::vector<uint32_t> *rec_spikes = m_buffer_rec.acquire_read ();
-  if (rec_spikes)
-    this->spike_prop (*rec_spikes, this->m_weights_rec, batch_begin,
-		       batch_end);
+  this->spike_prop (*rec_spikes, this->m_weights_rec, batch_begin,
+		    batch_end);
   m_buffer_rec.release_read ();
 }
 
@@ -76,20 +75,14 @@ full_rec_linear_lif<T>::poll_spiking_output (std::vector<uint32_t> &spikes_out,
 					     uint32_t batch_end)
 {
   std::vector<uint32_t> *ptr = m_buffer_rec.acquire_write ();
-  if (ptr)
+  for (uint32_t i = batch_begin; i < batch_end; i++)
     {
-      for (uint32_t i = batch_begin; i < batch_end; i++)
+      if (this->m_v_membrane[i] > this->m_v_thresh)
 	{
-	  spikes_out.push_back (i);
-	  ptr->push_back (i);
+	      spikes_out.push_back (i);
+	      ptr->push_back (i);
 	}
     }
-  else
-    {
-      for (uint32_t i = batch_begin; i < batch_end; i++)
-	  spikes_out.push_back (i);
-    }
-
   m_buffer_rec.release_write ();
 }
 
@@ -131,8 +124,6 @@ full_rec_linear_lif<T>::profile_worstcase_batch ()
   /* We must also consider recurrent spikes here, so fill the
      recurrent spike buffer with a spike from each neuron.  */
   spikes_rec = m_buffer_rec.acquire_write ();
-  rts_checking_assert (spikes_rec != nullptr);
-
   for (uint32_t i = 0; i < this->m_num_outputs; i++)
     spikes_rec->push_back (i);
 
