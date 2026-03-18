@@ -14,7 +14,7 @@ class tensor
 public:
   using size_type = std::vector<T>::size_type;
 
-  tensor (std::string path, std::vector<size_type> shape);
+  tensor (std::string path, std::initializer_list<size_type> shape);
   tensor (std::vector<T> data, std::vector<size_type> shape);
   tensor (std::vector<T> data, std::initializer_list<size_type> shape);
   tensor (std::vector<size_type> shape, T init=T{});

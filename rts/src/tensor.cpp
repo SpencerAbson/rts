@@ -9,7 +9,8 @@
 
 
 template<typename T>
-tensor<T>::tensor (std::string path, std::vector<tensor<T>::size_type> shape)
+tensor<T>::tensor (std::string path,
+		   std::initializer_list<tensor<T>::size_type> shape)
   : shape (shape), stride (shape.size ())
 {
   int ret = weights_from_file (path, SHAPE_SIZE (shape), vec);
