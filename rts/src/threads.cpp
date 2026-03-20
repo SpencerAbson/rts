@@ -28,7 +28,7 @@ thread::join ()
 {
   int ret = pthread_join (m_id, NULL);
   if (ret)
-      debug_msg ("Failed to join pthread.\n");
+    debug_msg ("Failed to join pthread.\n", ret);
 
   return ret;
 }
@@ -36,12 +36,8 @@ thread::join ()
 int
 thread::kill ()
 {
-  if (m_alive.load (std::memory_order_acquire))
-    {
-      m_alive.store (false, std::memory_order_release);
-      return join ();
-    }
-  return 0;
+  m_alive.store (false, std::memory_order_release);
+  return join ();
 }
 
 void

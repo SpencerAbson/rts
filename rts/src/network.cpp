@@ -15,7 +15,6 @@ network::network (uint32_t threads, uint32_t period_us)
 
 network::~network ()
 {
-  kill ();
   /* We're responsible for the buffers allocated between layers,
      we have that BUFFER_RD for layer_i is BUFF_WR for layer_{i-1}
      and so forth...  */
@@ -108,7 +107,6 @@ network::run ()
 
       /* Cleanup what we've created thus far.  */
       pthread_barrier_destroy (&barrier);
-
       return ret;
     }
 
