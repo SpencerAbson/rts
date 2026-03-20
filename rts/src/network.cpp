@@ -2,6 +2,7 @@
 #include <sys/mman.h>
  #include <semaphore.h>
 #include "../include/util.h"
+#include "../include/signal.hpp"
 #include "../include/buffers.hpp"
 #include "../include/threads.hpp"
 #include "../include/network.hpp"
@@ -80,62 +81,44 @@ network::run ()
   assert (m_initialised);
   rts_checking_assert (!m_layers.empty ());
 
-  int ret;
-  /* We'll use a barrier to synchronise the start time of each thread.  */
-  pthread_barrier_t barrier;
-  ret = pthread_barrier_init (&barrier, NULL, m_threads.size ());
-  if (ret)
-    {
-      debug_perror ("pthread_barrier_init");
-      debug_msg ("Failed to create notification semaphore.\n");
-      return ret;
-    }
+  /* This acts as a barrier to ensure that the threads begin their cyclic
+     loops at approximately the same time.  */
+  signal start_notification (m_threads.size ());
 
-  /* Any thread may die at any time during the simulation; it may run out of
-     work (e.g. the input thread) or experience a fatal error such as a timing
-     violation.
+  /* Any thread may die at any time during the simulation; it may run out
+     of work (e.g. the input thread) or experience a fatal error such as a
+     timing violation.
 
-     The loss of any thread is fatal for the whole simulation, so we should be
-     notified when this happens and exit gracefully.  To do that, we'll use a
-     post/wait semaphore pattern.  */
-  sem_t exit_notification;
-  ret = sem_init (&exit_notification, 0, 0);
-  if (ret)
-    {
-      debug_perror ("pthread_barrier_init");
-      debug_msg ("Failed to notification semaphore.\n");
-
-      /* Cleanup what we've created thus far.  */
-      pthread_barrier_destroy (&barrier);
-      return ret;
-    }
+     The loss of any thread is fatal for the whole simulation, so we should
+     be notified when this happens and exit gracefully.  To do that, we'll
+     use the same kind of signal/wait structure, where the main thread is
+     the only waiter and all threads are potential signallers.  */
+  signal exit_notification (1);
 
   /* Create and run all threads.  */
-  for (auto &thread : m_threads)
+  for (auto it = m_threads.begin (); it != m_threads.end (); it++)
     {
-      ret = thread->start (&barrier, &exit_notification);
+      int ret = (*it)->start (&start_notification, &exit_notification);
       if (ret)
 	{
-	  debug_msg ("Failed to create threads.\n");
-	  /* Kill anything that succeeded in starting.  */
-	  kill ();
-
-	  /* Cleanup what we've created thus far.  */
-	  sem_destroy (&exit_notification);
-	  pthread_barrier_destroy (&barrier);
+	  debug_msg ("Failed to create threads\n.");
+	  /* Break any waiting on START_NOTIFICATION, and join any threads
+	     that started successfully.  */
+	  start_notification.cancel ();
+	  while (it != m_threads.begin ())
+	    {
+	      --it;
+	      (*it)->kill_join ();
+	    }
 
 	  return ret;
 	}
     }
 
-  /* As discussed above, wait for any thread to die then kill and
-     join all threads.  */
-  sem_wait (&exit_notification);
+  /* As discussed above, wait for any thread to die then kill and join
+     all threads.  */
+  exit_notification.wait ();
   kill ();
-
-  /* Cleanup.  */
-  sem_destroy (&exit_notification);
-  pthread_barrier_destroy (&barrier);
 
 #ifdef EN_PROFILE_NETWORK
   std::string stats = "";
@@ -180,7 +163,7 @@ network::kill ()
 {
   /* Killemall.  */
   for (auto &thread : m_threads)
-    thread->kill ();
+    thread->kill_join ();
 }
 
 void

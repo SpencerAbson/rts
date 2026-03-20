@@ -9,6 +9,7 @@ add_library(rts STATIC
 	src/tensor.cpp
 	src/threads.cpp
 	src/buffers.cpp
+	src/signal.cpp
 	src/layers/layer.cpp
 	src/layers/linear_lif.cpp
 	src/layers/rec_linear_lif.cpp

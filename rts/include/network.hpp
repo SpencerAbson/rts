@@ -43,9 +43,11 @@ public:
   inference (std::vector<uint32_t> spikes);
 
 private:
-  /* Kill all spawned threads.  */
+  /* Kill and join all spawned threads, assuming they running the
+     cyclic loop.  */
   void
   kill ();
+
   /* The greedy partiting algorithm used to assign work to threads.  */
   void
   linear_partitioning ();

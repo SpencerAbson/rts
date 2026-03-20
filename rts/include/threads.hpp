@@ -3,7 +3,7 @@
 
 #include <atomic>
 #include <functional>
-#include <semaphore.h>
+#include "signal.hpp"
 #include "buffers.hpp"
 #include "layers/layer.hpp"
 
@@ -26,33 +26,41 @@ public:
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
   int
-  start (pthread_barrier_t *barrier, sem_t *sema);
+  start (signal *start_notification, signal *exit_notification);
   /* Wrapper on pthread_join.  */
   int
   join ();
-  /* Kill and join, returning 0 on success and a pthread error
-     code otherwise.  */
+
+  /* Set M_ALIVE to false and join, returning 0 on success and a
+     pthread error code otherwise.  */
   int
-  kill ();
+  kill_join ();
 
   static void*
   runner (void *arg)
   {
     thread *worker = (thread *)arg;
-    rts_checking_assert (worker->m_barrier != nullptr);
-
     /* Set state to alive.  */
     worker->m_alive.store (true, std::memory_order_relaxed);
-    /* Sleep until everyone else is ready.  */
-    pthread_barrier_wait (worker->m_barrier);
+    /* Notifiy every other thread that we are ready.  */
+    worker->m_start_notification->post ();
+
+    /* Sleep until every other thread is ready.  */
+    if (worker->m_start_notification->wait ())
+      /* The start was cancelled...  */
+      {
+	/* Notify the main thread of our exit.  */
+	worker->m_exit_notification->post ();
+	pthread_exit (NULL);
+      }
+
     /* Set the timer.  */
     clock_gettime (CLOCK_MONOTONIC, &worker->m_timer);
-
     /* Run!  */
     worker->run ();
 
     /* Notify the main thread of our exit.  */
-    sem_post (worker->m_notify_exit);
+    worker->m_exit_notification->post ();
     pthread_exit (NULL);
   }
 
@@ -68,9 +76,9 @@ public:
   /* Local timer.  */
   timespec m_timer;
   /* To synchronise with everyone else at the start.  */
-  pthread_barrier_t *m_barrier = nullptr;
+  signal *m_start_notification;
   /* To pass the exiting signal back to the main thread.  */
-  sem_t *m_notify_exit;
+  signal *m_exit_notification;
 
   /* Killswitch.  */
   std::atomic<bool> m_alive {false};
@@ -79,10 +87,11 @@ public:
   thread (const thread& other)
   {
     m_timer     = other.m_timer;
-    m_barrier   = other.m_barrier;
     m_alive     = other.m_alive.load (std::memory_order_seq_cst);
     m_period_ns = other.m_period_ns;
     m_id        = other.m_id;
+    m_start_notification = other.m_start_notification;
+    m_exit_notification  = other.m_exit_notification;
 #ifdef EN_PROFILE_NETWORK
     m_max_latency_ns   = other.m_max_latency_ns;
     m_min_latency_ns   = other.m_min_latency_ns;

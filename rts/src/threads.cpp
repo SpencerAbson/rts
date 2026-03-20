@@ -12,10 +12,10 @@ thread::thread (uint32_t period_us)
 }
 
 int
-thread::start (pthread_barrier_t *barrier, sem_t *sema)
+thread::start (signal *start, signal *exit)
 {
-  m_barrier = barrier;
-  m_notify_exit = sema;
+  m_start_notification = start;
+  m_exit_notification = exit;
 #ifdef EN_RT_POLICY
   return create_rt_pthread ();
 #else
@@ -34,7 +34,7 @@ thread::join ()
 }
 
 int
-thread::kill ()
+thread::kill_join ()
 {
   m_alive.store (false, std::memory_order_release);
   return join ();
@@ -71,7 +71,7 @@ thread::complete_period ()
     {
       debug_msg ("Fatal timing violation\n");
       /* Notify the main thread of our exit.  */
-      sem_post (m_notify_exit);
+      m_exit_notification->post ();
       pthread_exit (NULL);
     }
 
