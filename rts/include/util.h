@@ -48,7 +48,7 @@ handle_timespec_overflow (timespec *ts)
 }
 
 template<typename T>
-inline int
+int
 weights_from_file (std::string path, std::streamsize count,
 		   std::vector<T> &out)
 {
@@ -66,7 +66,7 @@ weights_from_file (std::string path, std::streamsize count,
 }
 
 template<typename T>
-inline int
+int
 weights_to_file (const std::string &path, const std::vector<T> &vec)
 {
   std::ofstream file (path,
