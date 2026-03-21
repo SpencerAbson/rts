@@ -6,9 +6,9 @@ project(nmnist_bench)
 # --------------------------------------------------------------
 add_definitions(-DPROJECT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}"
 		-DRTS_PERF_DIR="${CMAKE_CURRENT_SOURCE_DIR}/perf"
-		-DEN_PROFILE_NETWORK=1
-		-DEN_DEBUG_PRINT=1
-		-DEN_CHECKING_ASSERT=1)
+		-DRTS_EN_PROFILE_NETWORK=1
+		-DRTS_EN_DEBUG_PRINT=1
+		-DRTS_EN_CHECKING_ASSERT=1)
 
 # --------------------------------------------------------------
 # Libraries

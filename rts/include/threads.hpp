@@ -63,7 +63,7 @@ public:
 
     /* Set the timer.  */
     clock_gettime (CLOCK_MONOTONIC, &worker->m_timer);
-#ifdef EN_PROFILE_NETWORK
+#ifdef RTS_EN_PROFILE_NETWORK
     /* Record the initial wakeup time.  */
     worker->m_wakeup_times.push_back (worker->m_timer.tv_sec * 1E9
 				      + worker->m_timer.tv_nsec);
@@ -101,7 +101,7 @@ public:
     m_id        = other.m_id;
     m_start_notification = other.m_start_notification;
     m_exit_notification  = other.m_exit_notification;
-#ifdef EN_PROFILE_NETWORK
+#ifdef RTS_EN_PROFILE_NETWORK
     m_latencies = other.m_latencies;
     m_wakeup_times = other.m_wakeup_times;
 #endif
@@ -112,7 +112,7 @@ private:
   uint64_t m_period_ns;
   /* pthread ID.  */
   pthread_t m_id;
-#ifdef EN_PROFILE_NETWORK
+#ifdef RTS_EN_PROFILE_NETWORK
   std::vector<uint64_t> m_latencies;
   std::vector<uint64_t> m_wakeup_times;
 #endif

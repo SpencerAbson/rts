@@ -22,7 +22,7 @@ thread::start (signal *start, signal *exit)
 {
   m_start_notification = start;
   m_exit_notification = exit;
-#ifdef EN_RT_POLICY
+#ifdef RTS_EN_RT_POLICY
   return create_rt_pthread ();
 #else
   return pthread_create (&m_id, NULL, runner, (void *)this);
@@ -50,7 +50,7 @@ int
 thread::write_perf_metrics (const std::string &path_latencies,
 			    const std::string &path_wakeups) const
 {
-#ifdef EN_PROFILE_NETWORK
+#ifdef RTS_EN_PROFILE_NETWORK
   int ret = weights_to_file (path_latencies, m_latencies);
   if (ret)
     debug_msg ("Failed to write performance metrics to file: {}.\n",
@@ -71,7 +71,7 @@ thread::write_perf_metrics (const std::string &path_latencies,
 void
 thread::complete_period ()
 {
-#ifdef EN_PROFILE_NETWORK
+#ifdef RTS_EN_PROFILE_NETWORK
   timespec end;
   clock_gettime (CLOCK_MONOTONIC, &end);
   /* Record the latency of this cycle.  */
@@ -100,7 +100,7 @@ thread::complete_period ()
   /* Otherwise, sleep until the next cycle.  */
   clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
 
-#ifdef EN_PROFILE_NETWORK
+#ifdef RTS_EN_PROFILE_NETWORK
   /* Record the wakeup time.  */
   clock_gettime (CLOCK_MONOTONIC, &now);
   m_wakeup_times.push_back (now.tv_sec * 1E9 + now.tv_nsec);
