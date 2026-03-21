@@ -29,6 +29,9 @@ public:
   std::string
   str_schematic_descr (uint32_t level=0) const;
 
+  int
+  write_schematic (const std::string &path) const;
+
   /* Model each input neuron as a poisson source using a bernoulli
      approximation.  */
   std::vector<uint32_t>

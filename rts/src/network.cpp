@@ -1,6 +1,6 @@
 #include <memory>
+#include <fstream>
 #include <sys/mman.h>
- #include <semaphore.h>
 #include "../include/util.h"
 #include "../include/signal.hpp"
 #include "../include/buffers.hpp"
@@ -12,19 +12,6 @@ network::network (uint32_t threads, uint32_t period_us)
 {
   /* Better to catch nonesense now than later on...  */
   assert (m_num_threads && period_us);
-}
-
-network::~network ()
-{
-  /* We're responsible for the buffers allocated between layers,
-     we have that BUFFER_RD for layer_i is BUFF_WR for layer_{i-1}
-     and so forth...  */
-  if (!m_layers.size () || !m_initialised)
-    return;
-
-  delete m_layers[0]->m_buffer_rd;
-  for (uint32_t i = 0; i < m_layers.size (); i++)
-    delete m_layers[i]->m_buffer_wr;
 }
 
 void
@@ -121,14 +108,14 @@ network::run ()
   kill ();
 
 #ifdef EN_PROFILE_NETWORK
-  std::string stats = "";
+  /* Write the schematic.  */
+  write_schematic (RTS_PERF_DIR"/schematic.txt");
+  /* Write the performance data for each thread.  */
   for (const auto &thread: m_threads)
-    stats += thread->str_perf_metrics ();
-
-  debug_dump ("{}\n", ";; Schematic");
-  debug_dump ("{}\n", str_schematic_descr ());
-  debug_dump ("{}\n", ";; Statistics");
-  debug_dump ("{}", stats);
+    thread->write_perf_metrics (std::format (RTS_PERF_DIR"/thread_{}_latencies",
+					     thread->debug_id ()),
+				std::format (RTS_PERF_DIR"/thread_{}_wakeups",
+					     thread->debug_id ()));
 #endif
 
   return 0;
@@ -156,6 +143,22 @@ network::str_schematic_descr (uint32_t level) const
 
   std::string space = std::string (level, '\t');
   return std::format ("{}(network [{}\n{}])", space, temp, space);
+}
+
+int
+network::write_schematic (const std::string &path) const
+{
+  std::ofstream file (path, std::ios::out | std::ios::trunc);
+  if (!file.is_open ())
+    {
+      debug_msg ("Failed to write schematic to file: {}.\n", path);
+      return -1;
+    }
+
+  file << str_schematic_descr (0);
+  file.close ();
+
+  return 0;
 }
 
 void
@@ -283,4 +286,17 @@ network::inference (std::vector<uint32_t> spikes)
 #endif
 
   return spikes;
+}
+
+network::~network ()
+{
+  /* We're responsible for the buffers allocated between layers,
+     we have that BUFFER_RD for layer_i is BUFF_WR for layer_{i-1}
+     and so forth...  */
+  if (!m_layers.size () || !m_initialised)
+    return;
+
+  delete m_layers[0]->m_buffer_rd;
+  for (uint32_t i = 0; i < m_layers.size (); i++)
+    delete m_layers[i]->m_buffer_wr;
 }

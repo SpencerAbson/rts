@@ -65,6 +65,23 @@ weights_from_file (std::string path, std::streamsize count,
   return ret;
 }
 
+template<typename T>
+inline int
+weights_to_file (const std::string &path, const std::vector<T> &vec)
+{
+  std::ofstream file (path,
+		      std::ofstream::binary | std::ios::out | std::ios::trunc);
+  if (!file.is_open ())
+    return -1;
+
+  int ret = 0;
+  if (!file.write ((const char *)vec.data (), vec.size () * sizeof (T)))
+    ret = -1;
+
+  file.close ();
+  return ret;
+}
+
 inline std::mt19937&
 mersenne_twister ()
 {

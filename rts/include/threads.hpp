@@ -23,6 +23,9 @@ public:
   virtual std::string
   str_descr (uint32_t level=0) const = 0;
 
+  uint32_t
+  debug_id () const;
+
   /* Initialise and run, returning 0 on success and a pthread error
      code otherwise.  */
   int
@@ -35,6 +38,10 @@ public:
      pthread error code otherwise.  */
   int
   kill_join ();
+
+  int
+  write_perf_metrics (const std::string &path_latencies,
+		      const std::string &path_wakeups) const;
 
   static void*
   runner (void *arg)
@@ -56,6 +63,12 @@ public:
 
     /* Set the timer.  */
     clock_gettime (CLOCK_MONOTONIC, &worker->m_timer);
+#ifdef EN_PROFILE_NETWORK
+    /* Record the initial wakeup time.  */
+    worker->m_wakeup_times.push_back (worker->m_timer.tv_sec * 1E9
+				      + worker->m_timer.tv_nsec);
+#endif
+
     /* Run!  */
     worker->run ();
 
@@ -68,10 +81,6 @@ public:
      is > T'.  */
   void
   complete_period ();
-
-  /* Stringify the stats collected under EN_PROFILE_NETWORK.  */
-  std::string
-  str_perf_metrics () const;
 
   /* Local timer.  */
   timespec m_timer;
@@ -93,10 +102,8 @@ public:
     m_start_notification = other.m_start_notification;
     m_exit_notification  = other.m_exit_notification;
 #ifdef EN_PROFILE_NETWORK
-    m_max_latency_ns   = other.m_max_latency_ns;
-    m_min_latency_ns   = other.m_min_latency_ns;
-    m_total_latency_ns = other.m_total_latency_ns;
-    m_total_cycles     = other.m_total_cycles;
+    m_latencies = other.m_latencies;
+    m_wakeup_times = other.m_wakeup_times;
 #endif
   }
 
@@ -105,19 +112,16 @@ private:
   uint64_t m_period_ns;
   /* pthread ID.  */
   pthread_t m_id;
+#ifdef EN_PROFILE_NETWORK
+  std::vector<uint64_t> m_latencies;
+  std::vector<uint64_t> m_wakeup_times;
+#endif
   /* Create a pthread under the SCHED_FIFO policy.  */
   int
   create_rt_pthread ();
+
 protected:
   uint32_t m_debug_id;
-#ifdef EN_PROFILE_NETWORK
-private:
-  uint64_t m_max_latency_ns = 0;
-  uint64_t m_min_latency_ns = UINT64_MAX;
-  uint64_t m_total_latency_ns = 0;
-
-  uint64_t m_total_cycles = 0;
-#endif
 };
 
 

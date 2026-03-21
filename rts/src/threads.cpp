@@ -11,6 +11,12 @@ thread::thread (uint32_t period_us)
   m_debug_id_counter++;
 }
 
+uint32_t
+thread::debug_id () const
+{
+  return m_debug_id;
+}
+
 int
 thread::start (signal *start, signal *exit)
 {
@@ -40,23 +46,34 @@ thread::kill_join ()
   return join ();
 }
 
+int
+thread::write_perf_metrics (const std::string &path_latencies,
+			    const std::string &path_wakeups) const
+{
+  int ret = weights_to_file (path_latencies, m_latencies);
+  if (ret)
+    debug_msg ("Failed to write performance metrics to file: {}.\n",
+	       path_latencies);
+
+  ret = weights_to_file (path_wakeups, m_wakeup_times);
+  if (ret)
+    debug_msg ("Failed to write performance metrics to file: {}.\n",
+	       path_wakeups);
+
+  return ret;
+}
+
 void
 thread::complete_period ()
 {
 #ifdef EN_PROFILE_NETWORK
   timespec end;
   clock_gettime (CLOCK_MONOTONIC, &end);
-  /* Record latency stats.  */
+  /* Record the latency of this cycle.  */
   uint64_t latency = (end.tv_sec - m_timer.tv_sec) * 1E9
     + end.tv_nsec - m_timer.tv_nsec;
 
-  if (latency > m_max_latency_ns)
-    m_max_latency_ns = latency;
-  if (latency < m_min_latency_ns)
-    m_min_latency_ns = latency;
-
-  m_total_latency_ns += latency;
-  m_total_cycles++;
+  m_latencies.push_back (latency);
 #endif
   timespec now;
 
@@ -77,21 +94,12 @@ thread::complete_period ()
 
   /* Otherwise, sleep until the next cycle.  */
   clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &m_timer, NULL);
-}
 
-std::string
-thread::str_perf_metrics () const
-{
-  assert (!m_alive.load (std::memory_order_relaxed));
-  std::string stats = "";
 #ifdef EN_PROFILE_NETWORK
-  stats += std::format ("Thead ID: {}\n", m_debug_id);
-  stats += std::format ("maximum latency: {} ns\n", m_max_latency_ns);
-  stats += std::format ("minimum latency: {} ns\n", m_min_latency_ns);
-  stats += std::format ("average latency: {} ns\n", m_total_latency_ns
-			/ m_total_cycles);
+  /* Record the wakeup time.  */
+  clock_gettime (CLOCK_MONOTONIC, &now);
+  m_wakeup_times.push_back (now.tv_sec * 1E9 + now.tv_nsec);
 #endif
-  return stats;
 }
 
 int
