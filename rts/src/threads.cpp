@@ -50,6 +50,7 @@ int
 thread::write_perf_metrics (const std::string &path_latencies,
 			    const std::string &path_wakeups) const
 {
+#ifdef EN_PROFILE_NETWORK
   int ret = weights_to_file (path_latencies, m_latencies);
   if (ret)
     debug_msg ("Failed to write performance metrics to file: {}.\n",
@@ -61,6 +62,10 @@ thread::write_perf_metrics (const std::string &path_latencies,
 	       path_wakeups);
 
   return ret;
+#else
+  debug_msg ("Warn: metrics requested but profiling is disabled.\n");
+  return 0;
+#endif
 }
 
 void
