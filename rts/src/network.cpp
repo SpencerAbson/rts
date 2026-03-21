@@ -48,16 +48,12 @@ network::initialise (input_thread::callback_type input_fn,
     (std::make_unique<output_thread> (m_period_us, output_fn,
 				      m_layers.back ()->m_buffer_wr));
 
-  /* RT-specific process-wide changes.  */
-#ifdef EN_RT_POLICY
   /* Lock memory for the entire process.  */
-  int ret = mlockall (MCL_CURRENT | MCL_FUTURE);
-  if (ret)
+  if (mlockall (MCL_CURRENT | MCL_FUTURE))
     {
       debug_perror ("mlockall");
       debug_msg ("Warn: failed to lock memory.\n");
     }
-#endif
 
   m_initialised = true;
 }
