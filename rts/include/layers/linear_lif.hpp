@@ -12,9 +12,9 @@ public:
 	      T beta=(T)0.8, T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF,
 	      std::string type="LLIF");
 
-  linear_lif (std::string path_w, std::string path_b, uint32_t num_inputs,
-	      uint32_t num_ouputs, uint32_t batch_size, T beta=(T)0.8,
-	      T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF,
+  linear_lif (const std::string &path_w, const std::string &path_b,
+	      uint32_t num_inputs, uint32_t num_ouputs, uint32_t batch_size,
+	      T beta=(T)0.8, T v_thresh=(T)1.0, uint64_t batch_cost=COST_UNDEF,
 	      std::string type="LLIF");
 
   std::vector<uint32_t>

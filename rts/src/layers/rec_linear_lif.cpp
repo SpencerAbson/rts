@@ -23,10 +23,10 @@ rec_linear_lif<T>::rec_linear_lif (tensor<T> weights, std::vector<T> bias,
 }
 
 template<typename T>
-rec_linear_lif<T>::rec_linear_lif (std::string path_w, std::string path_b,
-				   std::string path_rw, uint32_t num_inputs,
-				   uint32_t num_outputs, uint32_t batch_size,
-				   T beta, T v_thresh, uint64_t batch_cost)
+rec_linear_lif<T>::rec_linear_lif
+	(const std::string &path_w, const std::string &path_b,
+	 const std::string &path_rw, uint32_t num_inputs, uint32_t num_outputs,
+	 uint32_t batch_size, T beta, T v_thresh, uint64_t batch_cost)
   : linear_lif<T> (path_w, path_b, num_inputs, num_outputs, batch_size, beta,
 		   v_thresh, batch_cost, "REC_LLIF")
 {

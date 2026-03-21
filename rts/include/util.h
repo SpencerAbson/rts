@@ -49,7 +49,7 @@ handle_timespec_overflow (timespec *ts)
 
 template<typename T>
 int
-weights_from_file (std::string path, std::streamsize count,
+weights_from_file (const std::string &path, std::streamsize count,
 		   std::vector<T> &out)
 {
   std::ifstream file (path, std::ifstream::binary);

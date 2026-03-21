@@ -27,9 +27,9 @@ full_rec_linear_lif<T>::full_rec_linear_lif
 
 template<typename T>
 full_rec_linear_lif<T>::full_rec_linear_lif
-		  (std::string path_w, std::string path_b, std::string path_rw,
-		   uint32_t num_inputs, uint32_t num_outputs,
-		   uint32_t batch_size, T beta, T v_thresh, uint64_t batch_cost)
+	(const std::string &path_w, const std::string &path_b,
+	 const std::string &path_rw, uint32_t num_inputs, uint32_t num_outputs,
+	 uint32_t batch_size, T beta, T v_thresh, uint64_t batch_cost)
   : linear_lif<T> (path_w, path_b, num_inputs, num_outputs, batch_size, beta,
 		   v_thresh, batch_cost, "FULL_REC_LLIF"),
     m_weights_rec (path_rw, {num_outputs, num_outputs}),

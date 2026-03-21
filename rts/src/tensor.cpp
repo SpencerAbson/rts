@@ -9,7 +9,7 @@
 
 
 template<typename T>
-tensor<T>::tensor (std::string path,
+tensor<T>::tensor (const std::string &path,
 		   std::initializer_list<tensor<T>::size_type> shape)
   : shape (shape), stride (shape.size ())
 {

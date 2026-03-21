@@ -23,7 +23,8 @@ linear_lif<T>::linear_lif (tensor<T> weights, std::vector<T> bias,
 }
 
 template<typename T>
-linear_lif<T>::linear_lif (std::string path_weights, std::string path_bias,
+linear_lif<T>::linear_lif (const std::string &path_weights,
+			   const std::string &path_bias,
 			   uint32_t num_inputs, uint32_t num_outputs,
 			   uint32_t batch_size, T beta, T v_thresh,
 			   uint64_t batch_cost, std::string type)
