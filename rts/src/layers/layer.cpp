@@ -26,6 +26,20 @@ layer::forward (const std::vector<uint32_t> &spikes_in)
   return spike_out;
 }
 
+void
+layer::run (uint32_t begin, uint32_t end)
+{
+  rts_checking_assert (m_buffer_rd && m_buffer_wr);
+
+  const std::vector<uint32_t> *ptr_rd = m_buffer_rd->acquire_read ();
+  timestep_batched (*ptr_rd, begin, end);
+  m_buffer_rd->release_read ();
+
+  std::vector<uint32_t> *ptr_wr = m_buffer_wr->acquire_write ();
+  poll_spiking_output (*ptr_wr, begin, end);
+  m_buffer_wr->release_write ();
+}
+
 std::string
 layer::str_descr (uint32_t level) const
 {
@@ -91,20 +105,6 @@ void
 layer::set_buffer_wr (spikebuffer *buff)
 {
   m_buffer_wr = buff;
-}
-
-void
-layer::run (uint32_t begin, uint32_t end)
-{
-  rts_checking_assert (m_buffer_rd && m_buffer_wr);
-
-  const std::vector<uint32_t> *ptr_rd = m_buffer_rd->acquire_read ();
-  timestep_batched (*ptr_rd, begin, end);
-  m_buffer_rd->release_read ();
-
-  std::vector<uint32_t> *ptr_wr = m_buffer_wr->acquire_write ();
-  poll_spiking_output (*ptr_wr, begin, end);
-  m_buffer_wr->release_write ();
 }
 
 void

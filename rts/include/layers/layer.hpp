@@ -33,6 +33,11 @@ public:
   std::vector<uint32_t>
   forward (const std::vector<uint32_t> &spikes_in);
 
+  /* Run the sublayer [batch_begin, batch_end), reading input from
+     M_BUFFER_RD and writing the spiking output to M_BUFFER_WR.  */
+  void
+  run (uint32_t batch_begin, uint32_t batch_end);
+
   /* The number of input neurons.  */
   uint32_t
   input_size () const;
@@ -95,11 +100,6 @@ protected:
 
   std::string m_debug_type;
   uint32_t m_debug_id;
-
-public:
-  /* Fix access.  */
-  void
-  run (uint32_t batch_begin, uint32_t batch_end);
 };
 
 #endif // LAYER_H_
