@@ -18,7 +18,7 @@
 /* 32 * 32 * 2.  */
 #define NUM_INPUTS  2048
 #define NUM_HIDDEN  400
-#define NUM_OUTPUTS 10
+#define NUM_OUTPUTS 11
 
 /* Toggle this on to switch to the FP16 model.  */
 #define USE_FP16 0
