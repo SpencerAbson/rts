@@ -23,6 +23,16 @@ public:
   virtual std::string
   str_descr (uint32_t level=0) const = 0;
 
+#ifdef RTS_EN_PROFILE_NETWORK
+  const std::vector<uint64_t>&
+  latencies () const;
+  const std::vector<uint64_t>&
+  wakeup_times () const;
+  int
+  write_perf_metrics (const std::string &path_latencies,
+		      const std::string &path_wakeups) const;
+#endif
+
   uint32_t
   debug_id () const;
 
@@ -39,9 +49,6 @@ public:
   int
   kill_join ();
 
-  int
-  write_perf_metrics (const std::string &path_latencies,
-		      const std::string &path_wakeups) const;
 
   static void*
   runner (void *arg)

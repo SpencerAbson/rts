@@ -32,6 +32,10 @@ public:
   int
   write_schematic (const std::string &path) const;
 
+  /* Stringify the max, mean, and standard deviations of each thread.  */
+  std::string
+  generate_performance_overview ();
+
   /* Model each input neuron as a poisson source using a bernoulli
      approximation.  */
   std::vector<uint32_t>

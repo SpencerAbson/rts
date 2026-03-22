@@ -1,5 +1,6 @@
 #include <memory>
 #include <vector>
+#include <iostream>
 /* For float32_t and float16_t.  */
 #include <arm_neon.h>
 #include "network.hpp"
@@ -76,6 +77,10 @@ int main ()
   /* Init and run.  */
   net.initialise (input, output);
   net.run ();
+
+  /* All statistics are written to the RTS_PERF_DIR directory, but some
+     basic latency information is available here.  */
+  std::cout << net.generate_performance_overview () << std::endl;
 
   return 0;
 }

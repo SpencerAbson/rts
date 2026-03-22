@@ -1,5 +1,8 @@
 #include <memory>
 #include <fstream>
+#include <algorithm>
+#include <numeric>
+#include <cmath>
 #include <sys/mman.h>
 #include "../include/util.h"
 #include "../include/signal.hpp"
@@ -113,46 +116,6 @@ network::run ()
 				std::format (RTS_PERF_DIR"/thread_{}_wakeups",
 					     thread->debug_id ()));
 #endif
-
-  return 0;
-}
-
-std::string
-network::str_logical_descr (uint32_t level) const
-{
-  std::string temp = "";
-  for (const auto &layer : m_layers)
-    temp += "\n" + layer->str_descr (level + 1);
-
-  std::string space = std::string (level, '\t');
-  return std::format ("{}(network [{}\n{}])", space, temp, space);
-}
-
-std::string
-network::str_schematic_descr (uint32_t level) const
-{
-  assert (m_initialised);
-
-  std::string temp = "";
-  for (const auto &thread : m_threads)
-    temp += "\n" + thread->str_descr (level + 1);
-
-  std::string space = std::string (level, '\t');
-  return std::format ("{}(network [{}\n{}])", space, temp, space);
-}
-
-int
-network::write_schematic (const std::string &path) const
-{
-  std::ofstream file (path, std::ios::out | std::ios::trunc);
-  if (!file.is_open ())
-    {
-      debug_msg ("Failed to write schematic to file: {}.\n", path);
-      return -1;
-    }
-
-  file << str_schematic_descr (0);
-  file.close ();
 
   return 0;
 }
@@ -282,6 +245,82 @@ network::inference (std::vector<uint32_t> spikes)
 #endif
 
   return spikes;
+}
+
+std::string
+network::str_logical_descr (uint32_t level) const
+{
+  std::string temp = "";
+  for (const auto &layer : m_layers)
+    temp += "\n" + layer->str_descr (level + 1);
+
+  std::string space = std::string (level, '\t');
+  return std::format ("{}(network [{}\n{}])", space, temp, space);
+}
+
+std::string
+network::str_schematic_descr (uint32_t level) const
+{
+  assert (m_initialised);
+
+  std::string temp = "";
+  for (const auto &thread : m_threads)
+    temp += "\n" + thread->str_descr (level + 1);
+
+  std::string space = std::string (level, '\t');
+  return std::format ("{}(network [{}\n{}])", space, temp, space);
+}
+
+int
+network::write_schematic (const std::string &path) const
+{
+  std::ofstream file (path, std::ios::out | std::ios::trunc);
+  if (!file.is_open ())
+    {
+      debug_msg ("Failed to write schematic to file: {}.\n", path);
+      return -1;
+    }
+
+  file << str_schematic_descr (0);
+  file.close ();
+
+  return 0;
+}
+
+std::string
+network::generate_performance_overview ()
+{
+  assert (m_initialised);
+
+  std::string out = "";
+#ifdef RTS_EN_PROFILE_NETWORK
+  out += std::format (";; Schematic\n{}\n;; Latency info (all nanoseconds)",
+		      str_schematic_descr (0));
+  for (const auto &thread : m_threads)
+    {
+      const std::vector<uint64_t> &latencies = thread->latencies ();
+      assert (!latencies.empty ());
+      /* Maximum.  */
+      uint64_t max = *std::max_element (latencies.begin (), latencies.end ());
+
+      /* Mean.  */
+      double mean
+	= (double)std::accumulate (latencies.begin (), latencies.end (), 0.0)
+	/ latencies.size ();
+
+      /* Standard deviation.  */
+      double sq_sum = 0.0;
+      for (uint64_t x : latencies)
+	sq_sum += (x - mean) * (x - mean);
+      double stddev = std::sqrt (sq_sum / latencies.size ());
+
+      out += std::format ("\nthread {}\nmean: {:.2f}\nmax: {}\nstddev: {:.2f}",
+			  thread->debug_id (), mean, max, stddev);
+    }
+#else
+  debug_msg ("Warn: metrics requested but profiling is disabled.\n");
+#endif
+  return out;
 }
 
 network::~network ()

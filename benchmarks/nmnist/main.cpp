@@ -2,7 +2,6 @@
 #include <vector>
 #include <iostream>
 #include "util.h"
-#include "tensor.hpp"
 #include "network.hpp"
 #include "layers/linear_lif.hpp"
 
@@ -61,6 +60,10 @@ int main ()
   /* Init and run.  */
   net.initialise (input, output);
   net.run ();
+
+  /* All statistics are written to the RTS_PERF_DIR directory, but some
+     basic latency information is available here.  */
+  std::cout << net.generate_performance_overview () << std::endl;
 
   return 0;
 }

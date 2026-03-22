@@ -46,11 +46,13 @@ thread::kill_join ()
   return join ();
 }
 
+#ifdef RTS_EN_PROFILE_NETWORK
 int
 thread::write_perf_metrics (const std::string &path_latencies,
 			    const std::string &path_wakeups) const
 {
-#ifdef RTS_EN_PROFILE_NETWORK
+  assert (!m_alive);
+
   int ret = weights_to_file (path_latencies, m_latencies);
   if (ret)
     debug_msg ("Failed to write performance metrics to file: {}.\n",
@@ -62,11 +64,22 @@ thread::write_perf_metrics (const std::string &path_latencies,
 	       path_wakeups);
 
   return ret;
-#else
-  debug_msg ("Warn: metrics requested but profiling is disabled.\n");
-  return 0;
-#endif
 }
+
+const std::vector<uint64_t>&
+thread::latencies () const
+{
+  assert (!m_alive);
+  return m_latencies;
+}
+
+const std::vector<uint64_t>&
+thread::wakeup_times () const
+{
+  assert (!m_alive);
+  return m_wakeup_times;
+}
+#endif
 
 void
 thread::complete_period ()
