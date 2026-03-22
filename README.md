@@ -69,7 +69,18 @@ to use the [SCHED_FIFO](https://man7.org/linux/man-pages/man7/sched.7.html)
 real-time policy when executing the network.  To use this feature, one would
 need to build and install a kernel with `PREEMPT_RT` applied.
 
-Building any of the benchmarks should as simple as running `make`.
+__To build any of the benchmarks__:
+
+* `cd rts/benchmarks/<benchmark>`
+* `mkdir build`
+* `cmake -S . -B build`
+* `cd build`
+* `make`
+* `./bench`
+
+Note that if `RTS_EN_PROFILE_NETWORK` is defined, we should also create a
+`/perf` directory before running the simulation.
+
 ## Examples
 
 Please see the `/benchmarks` directory for a set of examples.  In general, we
