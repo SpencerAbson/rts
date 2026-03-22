@@ -3,6 +3,7 @@
 
 #include <string>
 #include "layer.hpp"
+#include "../tensor.hpp"
 
 template <typename T>
 class linear_lif : public layer
