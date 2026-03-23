@@ -60,7 +60,7 @@ network::run ()
   assert (m_initialised);
   rts_checking_assert (!m_layers.empty ());
 
-#ifdef RTS_LOCK_MEM
+#ifdef RTS_EN_LOCK_MEM
   /* Lock memory for the entire process.  */
   if (mlockall (MCL_CURRENT | MCL_FUTURE))
     {
