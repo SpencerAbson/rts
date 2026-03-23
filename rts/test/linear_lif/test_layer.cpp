@@ -55,7 +55,7 @@ int main ()
     return -1;
 
   /* Additionally, the distrbutions should look more-or-less the same.  We'll
-     use the Kendall rank correlation coefficient to quantify this.   */
+     use the Kendall rank correlation coefficient to quantify this.  */
   if (kendall_rank_corr (frequencies_test, frequencies_gold) < KENDALL_MIN)
     return -1;
 
