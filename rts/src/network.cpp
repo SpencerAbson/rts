@@ -296,7 +296,7 @@ network::generate_performance_overview ()
 
   std::string out = "";
 #ifdef RTS_EN_PROFILE_NETWORK
-  out += std::format (";; Schematic\n{}\n;; Latency info (all nanoseconds)",
+  out += std::format (";; Schematic\n{}\n;; Latency info (all nanoseconds)\n",
 		      str_schematic_descr (0));
   for (const auto &thread : m_threads)
     {
@@ -316,8 +316,9 @@ network::generate_performance_overview ()
 	sq_sum += (x - mean) * (x - mean);
       double stddev = std::sqrt (sq_sum / latencies.size ());
 
-      out += std::format ("\nthread {}\nmean: {:.2f}\nmax: {}\nstddev: {:.2f}",
-			  thread->debug_id (), mean, max, stddev);
+      out += std::format("thread {:<2} | mean: {:>10.2f} | max: {:>8} |"
+			 "stddev: {:>10.2f}\n", thread->debug_id (), mean,
+			 max, stddev);
     }
 #else
   debug_msg ("Warn: metrics requested but profiling is disabled.\n");
