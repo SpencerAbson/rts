@@ -18,3 +18,11 @@ add_library(rts STATIC
 
 target_include_directories(rts PUBLIC include)
 target_compile_options(rts PUBLIC -Wall -Wpedantic -O2 -std=c++20 -mcpu=cortex-a76)
+
+# --------------------------------------------------------------
+# Tests
+# --------------------------------------------------------------
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+    enable_testing()
+	add_subdirectory(test)
+endif()

@@ -67,6 +67,26 @@ weights_from_file (const std::string &path, std::streamsize count,
 
 template<typename T>
 int
+weights_from_file (const std::string &path, std::vector<T> &out)
+{
+  std::ifstream file (path, std::ifstream::binary | std::ios::ate);
+  if (!file.is_open ())
+    return -1;
+
+  int ret = 0;
+  std::streamsize size = file.tellg ();
+  out.resize (size / sizeof (T));
+
+  file.seekg (0, std::ios::beg);
+  if (!file.read ((char *)out.data (), size))
+    ret = -1;
+
+  file.close ();
+  return ret;
+}
+
+template<typename T>
+int
 weights_to_file (const std::string &path, const std::vector<T> &vec)
 {
   std::ofstream file (path,
