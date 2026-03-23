@@ -21,14 +21,12 @@ public:
   void
   profile_worstcase_batch () override;
 
-protected:
-  /* Update the LIF update rule to each neuron, subtracting the
-     recurrent weight if we spiked at the last timestep.  */
+  /* We'll modify this to account for the recurrent weighting.  */
   void
-  f32_neuron_update (uint32_t batch_begin, uint32_t batch_end) override;
-  void
-  f16_neuron_update (uint32_t batch_begin, uint32_t batch_end) override;
+  poll_spiking_output (std::vector<uint32_t> &spikes_out,
+		       uint32_t batch_begin, uint32_t batch_end) override;
 
+protected:
   std::vector<T> m_weights_rec;
 };
 

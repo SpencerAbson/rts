@@ -2,21 +2,23 @@
 #include <format>
 #include "util.h"
 #include "../test_util.h"
-#include "layers/linear_lif.hpp"
+#include "layers/rec_linear_lif.hpp"
 
-#define BETA 0.905
-#define NTIMESTEPS 306
+#define BETA   0.905
+#define THRESH 0.3
+#define NTIMESTEPS 22
 
-#define NUM_INPUTS  2312
-#define NUM_OUTPUTS 1000
+#define NUM_INPUTS  2450
+#define NUM_OUTPUTS 400
 
 #define KENDALL_MIN 0.9
-#define INPUT_PATH  PROJECT_ROOT"/linear_lif/data/inputs"
+#define INPUT_PATH  PROJECT_ROOT"/rec_linear_lif/data/inputs"
 
 int main ()
 {
-  auto lif = linear_lif<ftype> (MODEL_PATH "/w_fc1", MODEL_PATH "/b_fc1",
-				NUM_INPUTS, NUM_OUTPUTS, NUM_OUTPUTS, BETA);
+  auto lif = rec_linear_lif<ftype> (MODEL_PATH "/w_fc1", MODEL_PATH "/b_fc1",
+				    MODEL_PATH "/w_rec1", NUM_INPUTS,
+				    NUM_OUTPUTS, NUM_OUTPUTS, BETA, THRESH);
 
   /* The number of times each output neuron fired a spike in our
      implementation.  */

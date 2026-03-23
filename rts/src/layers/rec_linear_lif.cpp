@@ -39,104 +39,17 @@ rec_linear_lif<T>::rec_linear_lif
 
 template<typename T>
 void
-rec_linear_lif<T>::f32_neuron_update (uint32_t batch_begin, uint32_t batch_end)
+rec_linear_lif<T>::poll_spiking_output (std::vector<uint32_t> &spikes_out,
+					uint32_t batch_begin, uint32_t batch_end)
 {
-  if constexpr (std::is_same_v<T, float32_t>)
+  /* Push the spiking neurons to SPIKES_OUT.  */
+  for (uint32_t i = batch_begin; i < batch_end; i++)
     {
-      /* Max iteration at VF of 4.  */
-      const uint32_t vector_max
-	= batch_begin + ((batch_end - batch_begin) & ~0x03);
-      /* Vectorised constants for dynamics.  */
-      const float32x4_t beta_splat   = vdupq_n_f32 (this->m_beta);
-      const float32x4_t thresh_splat = vdupq_n_f32 (this->m_v_thresh);
-
-      /* Handle the neuron's dynamics, recurrent weight, and linear bias.  */
-      float32x4_t membrane, w_rec, bias;
-      for (uint32_t i = batch_begin; i < vector_max; i+=4)
+      if (this->m_v_membrane[i] > this->m_v_thresh)
 	{
-	  bias     = vld1q_f32 (&this->m_bias[i]);
-	  membrane = vld1q_f32 (&this->m_v_membrane[i]);
-	  w_rec    = vld1q_f32 (&this->m_weights_rec[i]);
-
-	  /* mem > threshold.  */
-	  uint32x4_t cmp = vcgtq_f32 (membrane, thresh_splat);
-	  /* Conditionally set a soft reset.  */
-	  uint32x4_t reset
-	    = vandq_u32 (cmp, vreinterpretq_u32_f32 (thresh_splat));
-	  /* Conditionally set a recurrent weighting.  */
-	  w_rec = vreinterpretq_f32_u32
-	    (vandq_u32 (cmp, vreinterpretq_u32_f32 (w_rec)));
-
-	  /* Compute bias + (mem * beta) + w_rec? - reset?  */
-	  membrane = vfmaq_f32 (bias, membrane, beta_splat);
-	  membrane = vsubq_f32 (membrane, vreinterpretq_f32_u32 (reset));
-	  membrane = vaddq_f32 (membrane, w_rec);
-
-	  vst1q_f32 (&this->m_v_membrane[i], membrane);
-	}
-      /* Scalar epilogue.  */
-      for (uint32_t i = vector_max; i < batch_end; i++)
-	{
-	  float update = this->m_bias[i]
-	    + (this->m_v_membrane[i] * this->m_beta);
-	  if (this->m_v_membrane[i] > this->m_v_thresh)
-	    {
-	      update -= this->m_v_thresh;
-	      update += this->m_weights_rec[i];
-	    }
-	  this->m_v_membrane[i] = update;
-	}
-    }
-}
-
-template<typename T>
-void
-rec_linear_lif<T>::f16_neuron_update (uint32_t batch_begin, uint32_t batch_end)
-{
-  if constexpr (std::is_same_v<T, float16_t>)
-    {
-      /* Max iteration at VF of 8.  */
-      const uint32_t vector_max
-	= batch_begin + ((batch_end - batch_begin) & ~0x07);
-      /* Vectorised constants for dynamics.  */
-      const float16x8_t beta_splat   = vdupq_n_f16 (this->m_beta);
-      const float16x8_t thresh_splat = vdupq_n_f16 (this->m_v_thresh);
-
-      /* Handle the neuron's dynamics, recurrent weight, and linear bias.  */
-      float16x8_t membrane, w_rec, bias;
-      for (uint32_t i = batch_begin; i < vector_max; i+=8)
-	{
-	  bias     = vld1q_f16 (&this->m_bias[i]);
-	  membrane = vld1q_f16 (&this->m_v_membrane[i]);
-	  w_rec    = vld1q_f16 (&this->m_weights_rec[i]);
-
-	  /* mem > threshold.  */
-	  uint16x8_t cmp = vcgtq_f16 (membrane, thresh_splat);
-	  /* Conditionally set a soft reset.  */
-	  uint16x8_t reset
-	    = vandq_u16 (cmp, vreinterpretq_u16_f16 (thresh_splat));
-	  /* Conditionally set a recurrent weighting.  */
-	  w_rec = vreinterpretq_f16_u16
-	    (vandq_u16 (cmp, vreinterpretq_u16_f16 (w_rec)));
-
-	  /* Compute bias + (mem * beta) + w_rec? - reset?  */
-	  membrane = vfmaq_f16 (bias, membrane, beta_splat);
-	  membrane = vsubq_f16 (membrane, vreinterpretq_f16_u16 (reset));
-	  membrane = vaddq_f16 (membrane, w_rec);
-
-	  vst1q_f16 (&this->m_v_membrane[i], membrane);
-	}
-      /* Scalar epilogue.  */
-      for (uint32_t i = vector_max; i < batch_end; i++)
-	{
-	  float16_t update = this->m_bias[i]
-	    + (this->m_v_membrane[i] * this->m_beta);
-	  if (this->m_v_membrane[i] > this->m_v_thresh)
-	    {
-	      update -= this->m_v_thresh;
-	      update += this->m_weights_rec[i];
-	    }
-	  this->m_v_membrane[i] = update;
+	  spikes_out.push_back (i);
+	  /* Handle the recurrent weight.  */
+	  this->m_v_membrane[i] += m_weights_rec[i];
 	}
     }
 }
