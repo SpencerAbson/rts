@@ -60,12 +60,14 @@ network::run ()
   assert (m_initialised);
   rts_checking_assert (!m_layers.empty ());
 
+#ifdef RTS_LOCK_MEM
   /* Lock memory for the entire process.  */
   if (mlockall (MCL_CURRENT | MCL_FUTURE))
     {
       debug_perror ("mlockall");
       debug_msg ("Warn: failed to lock memory.\n");
     }
+#endif
 
   /* This acts as a barrier to ensure that the threads begin their cyclic
      loops at approximately the same time.  */
