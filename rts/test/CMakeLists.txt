@@ -58,3 +58,33 @@ add_executable(rec_lif_layer_f16 rec_linear_lif/test_layer_f16.cpp)
 target_include_directories(rec_lif_layer_f16 PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(rec_lif_layer_f16 PRIVATE rts)
 add_test(NAME rec_linear_lif_layer_f16 COMMAND rec_lif_layer_f16)
+
+add_executable(rec_lif_net_f32_n_1 rec_linear_lif/test_network_f32_n_1.cpp)
+target_include_directories(rec_lif_net_f32_n_1 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rec_lif_net_f32_n_1 PRIVATE rts)
+add_test(NAME rec_linear_lif_net_f32_n_1 COMMAND rec_lif_net_f32_n_1)
+
+add_executable(rec_lif_net_f32_n_2 rec_linear_lif/test_network_f32_n_2.cpp)
+target_include_directories(rec_lif_net_f32_n_2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rec_lif_net_f32_n_2 PRIVATE rts)
+add_test(NAME rec_linear_lif_net_f32_n_2 COMMAND rec_lif_net_f32_n_2)
+
+add_executable(rec_lif_net_f32_n_4 rec_linear_lif/test_network_f32_n_4.cpp)
+target_include_directories(rec_lif_net_f32_n_4 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rec_lif_net_f32_n_4 PRIVATE rts)
+add_test(NAME rec_linear_lif_net_f32_n_4 COMMAND rec_lif_net_f32_n_4)
+
+add_executable(rec_lif_net_f16_n_1 rec_linear_lif/test_network_f16_n_1.cpp)
+target_include_directories(rec_lif_net_f16_n_1 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rec_lif_net_f16_n_1 PRIVATE rts)
+add_test(NAME rec_linear_lif_net_f16_n_1 COMMAND rec_lif_net_f16_n_1)
+
+add_executable(rec_lif_net_f16_n_2 rec_linear_lif/test_network_f16_n_2.cpp)
+target_include_directories(rec_lif_net_f16_n_2 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rec_lif_net_f16_n_2 PRIVATE rts)
+add_test(NAME rec_linear_lif_net_f16_n_2 COMMAND rec_lif_net_f16_n_2)
+
+add_executable(rec_lif_net_f16_n_4 rec_linear_lif/test_network_f16_n_4.cpp)
+target_include_directories(rec_lif_net_f16_n_4 PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rec_lif_net_f16_n_4 PRIVATE rts)
+add_test(NAME rec_linear_lif_net_f16_n_4 COMMAND rec_lif_net_f16_n_4)
