@@ -27,7 +27,7 @@ int main ()
 						    MODEL_PATH "/w_rec1",
 						    NUM_INPUTS, NUM_HIDDEN,
 						    /* batch size.  */
-						    NUM_HIDDEN, BETA);
+						    NUM_HIDDEN / 4, BETA);
   auto rlif2
     = std::make_unique<full_rec_linear_lif<ftype>> (MODEL_PATH "/w_fc2",
 						    MODEL_PATH "/b_fc2",
