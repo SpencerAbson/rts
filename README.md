@@ -29,6 +29,29 @@ the linear and recurrent steps into a single term.
 
 Each layer type supports both IEEE FP32 and FP16 data.
 
+## Simualtor Notes
+
+One of the goals of this project is to explore model parallelism for spiking
+networks.  Models can be parllelised arbitrarily; we might have multiple layers
+being worked on by the same thread, or multiple threads working on the same
+layer.  The simulator attempts to balance the load of each thread using a greedy
+algorithm.
+
+To enable this, __a global synaptic delay of one timestep is required__.  Models
+trained to run using RTS must take this into accout.
+
+Unlike SNNtorch, spiking input/output is not represented using matrices of 0s
+and 1s but in a coordinate format, where a flat coordinate is stored only if
+its position in the matrix is nonzero.  This __must be considered__ when
+providing input or receiving output.
+
+Additionally, while the weights of a `torch.nn.Linear (in_features, out_features)`
+have shape `[out_features, in_features]`, each layer type in RTS assumes they have
+shape `[in_features, out_features]` for the sake of performance - consider how
+poor the access pattern to a row-major matrix of `[out_features, in_features]`
+would be if the input spikes were sparse and spread out.  The effect of this is
+that __weights from pytorch must be transposed before use__.
+
 ## Building
 
 ### Testsuite
