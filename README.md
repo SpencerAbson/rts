@@ -35,7 +35,7 @@ One of the goals of this project is to explore model parallelism for spiking
 networks.  Models can be parllelised arbitrarily; we might have multiple layers
 being worked on by the same thread, or multiple threads working on the same
 layer.  The simulator attempts to balance the load of each thread using a greedy
-algorithm.
+algorithm, you can explore this a bit in `benchmarks/model-parallelism`.
 
 To enable this, __a global synaptic delay of one timestep is required__.  Models
 trained to run using RTS must take this into accout.
