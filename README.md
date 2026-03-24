@@ -1,39 +1,89 @@
+
 # RTS
 
 RTS is a real-time simulation tool for spiking neural networks that was
 written to support my undergraduate dissertation at the University of
 Manchester.
 
-The purpose of this project is to investigate the potential for
-high-performance inference of spiking neural networks on small/edge
-systems; it targets the Raspberry Pi-5 (Arm Cortex-A76) only.
+The purpose of this project is to investigate the potential for high-performance
+inference of spiking neural networks on small/edge  systems; it targets the
+Raspberry Pi-5 (Arm Cortex-A76) only.
 
 The project leverages spike sparsity, vectorisation, network-parallelisation,
 a real-time capable kernel (Linux with `PREEMPT_RT`), and the highly efficient
-LIF neuron model to acheive fast and deterministic spiking inference.  At the
-time of writing, it supports fully-connected layers of LIF neurons, with either
-no explicit recurrent connections, one-to-one recurrent connections, or
-all-to-all recurrent connections.  Each layer type supports both FP16 and FP32
-data.
+LIF neuron model to acheive fast and deterministic spiking inference.
 
-The simulator runs under the assumption that every model includes a global 1
-time step synaptic delay.
+Verification and evaluation was performed against models trained using
+[SNNtorch](https://github.com/jeshraghian/snntorch), hence the APIs for each
+layer type closely mirror that which is used there. Most importantly:
 
-Please consider that this is an academic experiment and __not production
-software__.
+* `linear_lif` is equivalent to passing the output of an `torch.nn.Linear` to
+the input of a `snn.Leaky`.
+* `rec_linear_lif` is equivalent to passing the output of an `torch.nn.Linear`
+to the input of a `snn.RLeaky` with `all_to_all=False` and an indepenent
+recurrent weight per neuron.
+* `full_rec_linear_lif` is equivalent to passing the output of an
+`torch.nn.Linear` to the input of a `snn.RLeaky` with `all_to_all=True`.  Note
+that this class takes only one bias parameter because we may combine those of
+the linear and recurrent steps into a single term.
+
+Each layer type supports both IEEE FP32 and FP16 data.
 
 ## Building
-As mentioned above, the sole target of this work is the Raspberry Pi-5 (Arm
-Cortex A76), and indeed the CMakeLists.txt currently contains
+
+### Testsuite
+
+To build and run the testsuite:
+```bash
+cd rts
+mkdir build
+cmake -S . -B build
+cd build
+make
+ctest
+```
+
+### Benchmarks
+
+To build and run any of the benchmarks:
+```bash
+cd <benchmark>
+mkdir build
+cmake -S . -B build
+cd build
+make
+./bench
+```
+
+### Directives
+
+* Defining `RTS_EN_CHECKING_ASSERT` will enable sanity/checking assertions.
+* Defining `RTS_EN_DEBUG_PRINT` will enable debug printing to stderr.
+* Defining `RTS_EN_PROFILE_NETWORK` will enable the collection of latency and
+wakeup-time statistics during the simulation, which will be written to the
+directory pointed to by `RTS_PERF_DIR`; a defintion of `RTS_EN_PROFILE_NETWORK`
+__requires__ a definiton of `RTS_PERF_DIR`.
+* Defining `RTS_EN_RT_POLICY` will tell the libary to use the
+[SCHED_FIFO](https://man7.org/linux/man-pages/man7/sched.7.html) real-time
+policy when executing the network.  To use this feature, one would need to build
+and install a kernel with `PREEMPT_RT` applied.
+* Defining `RTS_EN_LOCK_MEM` will enable a call to `mlockall` before the
+simulation is started (see [this commit](https://github.com/SpencerAbson/rts/commit/74c0aad0a81dd3338e65ac7cdda37f391370cea1)).
+
+
+### Notes
+
+As mentioned above, the sole target of this work is the Raspberry Pi-5
+(Arm Cortex A76), and indeed the root CMakeLists.txt currently contains
 
 `target_compile_options(rts PUBLIC .... -mcpu=cortex-a76)`
 
 .  That said, the project will compile with
 
-`target_compile_options(rts PUBLIC .... -march=armv8.2+fp16`
+`target_compile_options(rts PUBLIC .... -march=armv8.2-a+fp16`
 
-or any superseding architecture.  All development was done using GCC 14.2,
-and GCC 11 or greater is required.
+or any superseding architecture.  All development was done using GCC 14.2, and
+GCC 11 or greater is required.
 
 
 Taking a look at the `benchmarks/nmnist` directory, we can see an example of
@@ -59,34 +109,11 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../rts rts_build)
 add_executable(bench main.cpp)
 target_link_libraries(bench PUBLIC rts)
 ```
-
-Noting that a definition of `RTS_EN_PROFILE_NETWORK` also requires a
-defintition of `RTS_PERF_DIR`, which is where the library will write the
-profiler information.
-
-This example does not define `RTS_EN_RT_POLICY`, which would tell the libary
-to use the [SCHED_FIFO](https://man7.org/linux/man-pages/man7/sched.7.html)
-real-time policy when executing the network.  To use this feature, one would
-need to build and install a kernel with `PREEMPT_RT` applied.
-
-__To build any of the benchmarks__:
-
-* `cd rts/benchmarks/<benchmark>`
-* `mkdir build`
-* `cmake -S . -B build`
-* `cd build`
-* `make`
-* `./bench`
-
-Note that if `RTS_EN_PROFILE_NETWORK` is defined, we should also create a
-`/perf` directory before running the simulation.
-
 ## Examples
 
-Please see the `/benchmarks` directory for a set of examples.  In general, we
-begin by defining a network
-
-```
+In general, we begin by defining a network with timestep and thread-count
+parameters.
+```cpp
 #include "network.hpp"
 #include "layers/linear_lif.hpp"
 ...
@@ -98,9 +125,12 @@ int main ()
   network net = network (NTHREADS, TIMESTEP_US);
   ...
 ```
-before adding sequential layers,
-
-```
+The former will depend on how the model in question was trained.  The latter is
+configurable and determines how many threads the simulator will split the
+execution of the layers into, __this does not include the (2) threads required
+to fetch input and process output__.  Given a network, we then add the layers
+of a sequential SNN model.
+```cpp
   ...
   /* Create layers.  */
   auto lif1 = std::make_unique<linear_lif<float>> (...);
@@ -110,8 +140,9 @@ before adding sequential layers,
   net.add_layer (std::move (lif2));
   ...
 ```
-defining the functions that supply input spikes and process output spikes,
-```
+Before defining the functions to be run by those input/output threads alluded
+to above.
+```cpp
   ...
 #define NTIMESTEPS  10
 #define RATE_MHZ    5E-4
@@ -135,14 +166,38 @@ defining the functions that supply input spikes and process output spikes,
   };
   ...
 ```
-initialising the network,
-
-```
+Finally, we can initalise and run the network.
+```cpp
   ...
   net.initialise (input, output);
+  net.run ();
   ...
 ```
-and finally calling `net.run ()` to begin the simulation.
+The network will continue to run until either
+* A timing-violation (where a thread has not met it's timing requirement) occurs.
+* The simulation is killed by writing to `killswitch` in the input thread.
+
+In both cases the process will clean up and excit gracefully.  Please see the
+`benchmarks` directory for a set of examples.
+
+## Schematics
+
+Stringified schematics can be useful for looking at how the simulator has broken
+up a network, here is quick reference for parsing them.
+
+```lisp
+(network [
+	(thread:NET 0 [                       # Thread 0 runs all of...
+		(sublayer:LLIF 0 (range 0 800)    # Neurons [0, 800) of layer 0.
+			(buff:RD 0) (buff:WR 1))      # Writes to buff 1, reads from 0.
+		(sublayer:LLIF 1 (range 0 10)     # Neurons [0, 10) of layer 1.
+			(buff:RD 1) (buff:WR 2))      # Writes to buff 2, reads from 1.
+	])
+	(thread:INP 1 (buff:WR 0))            # Thread 1 runs the input.
+	(thread:OUP 2 (buff:RD 2))            # Thread 2 runs the output.
+])
+```
+
 ## Code Format
-The entire project tries to follow the standard [GNU formatting guidlines](https://www.gnu.org/prep/standards/standards.html#Formatting)
-for C/C++ code.
+
+The entire project tries to follow the standard [GNU formatting guidlines](https://www.gnu.org/prep/standards/standards.html#Formatting) for C/C++ code.
