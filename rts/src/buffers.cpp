@@ -3,6 +3,22 @@
 
 uint32_t spikebuffer::m_debug_id_counter = 0;
 
+/* The idea is that the double-buffer manages it's own swapping without
+   interference from the network.  That is, it switches the active read
+   and write buffers over at the end/start of every cycle by itself.
+
+   It does this by checking for 'stability' after any read or write has
+   completed.  The spikebuffer is stable when every reading thread has
+   read the contents of the active read buffer, and every writing thread
+   has written to the contents of the active write buffer.
+
+   If stability is never reached within a cycle, then we have a timing-
+   violation.  This will be detected by the network as soon as the
+   violating thread completes it's work.  We have an additional flag,
+   M_ACTIVE_RD, to ensure that an illegal state during reached in the
+   interval between the timing violation and simulation death does not
+   result in a data race.  */
+
 spikebuffer::spikebuffer (std::vector<uint32_t>::size_type size)
   : m_debug_id (m_debug_id_counter)
 {
