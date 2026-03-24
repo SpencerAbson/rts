@@ -163,10 +163,12 @@ network::linear_partitioning ()
       uint32_t end   = 0;
       uint32_t begin = 0;
 
+      rts_checking_assert (batch_cost != COST_UNDEF);
       /* Schedule the layer batch-by-batch.  */
       while (end != layer->output_size ())
 	{
-	  if (partition_cost + batch_cost / 2 <= target)
+	  if ((!partition_cost || m_threads.size () == (m_num_threads - 1))
+	      || (partition_cost + batch_cost / 2 <= target))
 	    partition_cost += batch_cost;
 	  else
 	    {
@@ -177,12 +179,18 @@ network::linear_partitioning ()
 		  /* The next sublayer starts from where this one ends.  */
 		  begin = end;
 		}
+
 	      /* Record the current partition.  */
 	      m_threads.push_back
 		(std::make_unique<network_thread> (m_period_us, sublayers));
 	      /* Reset SUBLAYERS and PARITION_COST.  */
 	      sublayers.clear ();
-	      partition_cost = batch_cost - (target - partition_cost);
+	      if (partition_cost > target)
+		/* Over-shoot.  */
+		partition_cost = batch_cost + (partition_cost - target);
+	      else
+		/* Under-shoot.  */
+		partition_cost = batch_cost + (target - partition_cost);
 	    }
 	  end += batch_size;
 	}
