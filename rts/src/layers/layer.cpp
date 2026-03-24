@@ -83,6 +83,12 @@ layer::batch_size () const
   return m_batch_size;
 }
 
+void
+layer::set_batch_cost (uint32_t cost)
+{
+  m_batch_cost_ns = cost;
+}
+
 uint32_t
 layer::debug_id () const
 {

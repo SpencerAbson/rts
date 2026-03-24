@@ -53,6 +53,9 @@ public:
   uint32_t
   batch_size () const;
 
+  void
+  set_batch_cost (uint32_t cost);
+
   /* Logical view.  */
   std::string
   str_descr (uint32_t level=0) const;
