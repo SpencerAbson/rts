@@ -79,8 +79,8 @@ full_rec_linear_lif<T>::poll_spiking_output (std::vector<uint32_t> &spikes_out,
     {
       if (this->m_v_membrane[i] > this->m_v_thresh)
 	{
-	      spikes_out.push_back (i);
-	      ptr->push_back (i);
+	  spikes_out.push_back (i);
+	  ptr->push_back (i);
 	}
     }
   m_buffer_rec.release_write ();
